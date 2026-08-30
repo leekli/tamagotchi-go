@@ -41,6 +41,8 @@ jobs:
       - name: Test
         run: go test -race -covermode=atomic -coverprofile=cover.out ./...
       - name: Coverage threshold
+        # This is a Docker container action, so it only runs on Linux runners.
+        if: matrix.os == 'ubuntu-latest'
         uses: vladopajic/go-test-coverage@v2
         with:
           config: ./.testcoverage.yml
