@@ -1,0 +1,38 @@
+{
+  "name": "Go CDE Workspace",
+  "image": "mcr.microsoft.com/devcontainers/go:1",
+
+  "features": {
+    "ghcr.io/devcontainers/features/go:1": {
+      "version": "1.26.6"
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/node:2": {
+      "version": "20",
+      "installYarnUsingApt": false
+    },
+    "ghcr.io/stu-bell/devcontainer-features/claude-code:0": {}
+  },
+
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "workbench.colorTheme": "SynthWave '84",
+        "editor.formatOnSave": true,
+        "editor.tabSize": 2,
+        "files.eol": "\n",
+        "files.insertFinalNewline": true
+      },
+      "extensions": [
+        "golang.Go",
+        "ms-vscode-remote.remote-containers",
+        "dbaeumer.vscode-eslint",
+        "RobbOwen.synthwave-vscode"
+      ]
+    }
+  },
+
+  "postCreateCommand": "npm install -g opencode-ai && curl -fsSL https://claude.ai/install.sh | bash",
+
+  "remoteUser": "vscode"
+}
