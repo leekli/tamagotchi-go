@@ -1,3 +1,15 @@
+# OS
 .DS_Store
+
+# Build output
 /main
 /tamagotchi-go
+/dist/
+
+# Test / coverage artefacts
+cover.out
+coverage.*
+*.cover.out
+
+# Private working brief
+PLAN.md
