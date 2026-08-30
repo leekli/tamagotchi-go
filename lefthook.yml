@@ -1,0 +1,39 @@
+# Local git hooks, run by lefthook. Install once with: lefthook install
+#
+# Two gates, as the project plan requires:
+#   pre-commit — fast checks, keeps commits quick
+#   pre-push   — the full gate: format, vet, lint, race tests, vulnerabilities
+#
+# Never bypass with `git commit/push --no-verify`. If a check is wrong, fix the
+# check.
+
+pre-commit:
+  parallel: true
+  commands:
+    gofmt:
+      glob: "*.go"
+      run: |
+        unformatted=$(gofmt -l {staged_files})
+        if [ -n "$unformatted" ]; then
+          echo "These files need gofmt:"; echo "$unformatted"; exit 1
+        fi
+    vet:
+      run: go vet ./...
+
+pre-push:
+  parallel: false
+  commands:
+    gofmt:
+      run: |
+        unformatted=$(gofmt -l .)
+        if [ -n "$unformatted" ]; then
+          echo "These files need gofmt:"; echo "$unformatted"; exit 1
+        fi
+    vet:
+      run: go vet ./...
+    lint:
+      run: golangci-lint run ./...
+    test:
+      run: go test -race -covermode=atomic ./...
+    govulncheck:
+      run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
