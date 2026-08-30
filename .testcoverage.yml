@@ -10,5 +10,7 @@ threshold:
 
 override:
   # main.go is entrypoint glue exercised by the smoke test, not unit tests.
-  - path: ^cmd/tamagotchi-go/
+  # The pattern must match both the package path (cmd/tamagotchi-go) and the
+  # file path (cmd/tamagotchi-go/main.go), so it carries no trailing slash.
+  - path: ^cmd/tamagotchi-go
     threshold: 0
