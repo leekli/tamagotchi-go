@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -22,6 +23,24 @@ func TestAcceptance_Wordmark(t *testing.T) {
 		// Six rows of block-letter art, ending in the rounded feet of the word.
 		assert.Contains(t, view, "(____)")
 		assert.Contains(t, view, "|_||_|")
+	})
+
+	t.Run("given the Screen when it renders then the wordmark rows stay column-aligned", func(t *testing.T) {
+		var wm []string
+		for _, l := range strings.Split(sizedScreen(t, 90, 24).View(), "\n") {
+			if strings.Contains(l, "|") {
+				wm = append(wm, stripANSI(l))
+			}
+		}
+		require.Len(t, wm, 5) // the five wordmark rows that carry '|' strokes
+
+		// Every rendered row is the same visible width, so lipgloss centres them
+		// all by the same offset and art column N stays screen column N+k on
+		// every row — which is what makes the word readable. A ragged block is
+		// re-centred row-by-row and the vertical strokes drift.
+		for i := 1; i < len(wm); i++ {
+			assert.Equal(t, lipgloss.Width(wm[0]), lipgloss.Width(wm[i]), "row %d width", i)
+		}
 	})
 }
 

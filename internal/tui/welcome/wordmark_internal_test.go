@@ -66,6 +66,30 @@ func TestRenderWordmarkKeepsEveryGlyphRow(t *testing.T) {
 	assert.Equal(t, len(wordmarkRows), strings.Count(out, "\n")+1)
 }
 
+func TestRenderWordmarkEmitsASolidRectangle(t *testing.T) {
+	t.Parallel()
+
+	// Every rendered row must be exactly the Wordmark width. A ragged block is
+	// re-centred row-by-row by lipgloss.JoinVertical and the vertical strokes
+	// drift, making the word unreadable.
+	base, shine := fixedStyles()
+	want := art.Width(wordmarkRows)
+	for _, frame := range []int{0, 6, 40} {
+		for i, line := range strings.Split(renderWordmark(frame, base, shine), "\n") {
+			assert.Equal(t, want, lipgloss.Width(line), "frame %d row %d width", frame, i)
+		}
+	}
+}
+
+func TestWordmarkSourceRowsAreEqualWidth(t *testing.T) {
+	t.Parallel()
+
+	want := len([]rune(wordmarkRows[0]))
+	for i, row := range wordmarkRows {
+		assert.Equal(t, want, len([]rune(row)), "wordmark.txt row %d", i)
+	}
+}
+
 func TestRenderWordmarkIsAPureFunctionOfFrame(t *testing.T) {
 	t.Parallel()
 

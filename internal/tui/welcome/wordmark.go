@@ -37,15 +37,25 @@ func sweepStart(elapsed time.Duration, width int) (col int, active bool) {
 // cell is painted in base; while the sweep is running, cells inside the shine
 // band are painted in shine instead. Spaces are left untouched so the sweep
 // only lights up the letters.
+//
+// Every row is emitted at the full Wordmark width, padded with trailing spaces,
+// so the block is a solid rectangle. A ragged block would be re-centred
+// row-by-row by lipgloss.JoinVertical and the vertical strokes would drift.
 func renderWordmark(frame int, base, shine lipgloss.Style) string {
-	start, active := sweepStart(anim.Elapsed(frame), art.Width(wordmarkRows))
+	width := art.Width(wordmarkRows)
+	start, active := sweepStart(anim.Elapsed(frame), width)
 
 	var b strings.Builder
 	for i, row := range wordmarkRows {
 		if i > 0 {
 			b.WriteByte('\n')
 		}
-		for col, r := range []rune(row) {
+		runes := []rune(row)
+		for col := 0; col < width; col++ {
+			r := ' '
+			if col < len(runes) {
+				r = runes[col]
+			}
 			switch {
 			case r == ' ':
 				b.WriteByte(' ')
