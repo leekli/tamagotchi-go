@@ -50,7 +50,7 @@ Branch: `phase-1-scaffold`. Done when every box is ticked and CI is green.
 - [x] `.testcoverage.yml` — thresholds, `main.go` excluded
 - [x] `.github/workflows/ci.yml` — lint, test (ubuntu + macos) + coverage gate +
       artifact, build, govulncheck, gitleaks, `go mod tidy` check
-- [ ] CI green on the opened PR
+- [x] CI green on the opened PR (merged in #1)
 
 ## Docs
 

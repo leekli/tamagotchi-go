@@ -22,6 +22,7 @@ mechanics come later.
 | Full test run (as CI) | `go test -race -covermode=atomic ./...` |
 | Skip the slow binary smoke test | `go test -short ./...` |
 | Coverage report | `go test -covermode=atomic -coverprofile=cover.out ./... && go tool cover -func=cover.out` |
+| Update golden files | `go test ./internal/tui/welcome -run TestWordmarkGoldenFrames -update` |
 | Lint (blocking) | `golangci-lint run ./...` |
 | Auto-format | `golangci-lint fmt ./...` |
 | Vulnerability scan | `go run golang.org/x/vuln/cmd/govulncheck@latest ./...` |
@@ -46,10 +47,21 @@ wrong, fix the check and say why in the commit.
   `ScreenID`.
 - `App` frames every Screen with shared chrome: a resize notice below 80×24, an
   optional scrolling viewport, and a help bar on the last row. It forwards a
-  `WindowSizeMsg` carrying the body area (height minus the help-bar row).
+  `WindowSizeMsg` carrying the body area (height minus the help-bar row), and
+  runs each composed frame through `zone.Scan` (bubblezone) so Screens can name
+  click targets with `zone.Mark` / `zone.Get(id).InBounds` (ADR-0005).
+- **Full-bleed vs scrollable** (ADR-0004): a Screen authored to fit 80×24 that
+  paints every cell returns `Scrollable() == false` (the Welcome Screen);
+  free-flowing text Screens that can overflow return `true` (the Next Screen).
+- **Animation**: `internal/anim` is the frame clock — `Tick`/`TickMsg` at
+  `anim.FPS` (~15). A Screen advances an integer frame counter on each `TickMsg`
+  and re-issues `Tick`; all motion is a pure function of that counter, so tests
+  drive it by sending `TickMsg`s, never by sleeping.
+- **Art**: `internal/art` embeds the hand-authored `.txt` files (`//go:embed`)
+  and exposes `Load`/`MustLoad`, `Width`, and `Mirror`. Art is ASCII only.
 - Layout: `cmd/tamagotchi-go` (entrypoint), `internal/cli` (arg wiring),
   `internal/tui` (router + shared chrome), `internal/tui/<screen>` (one package
-  per Screen).
+  per Screen), `internal/anim` (frame clock), `internal/art` (embedded art).
 
 ## Testing rules
 
@@ -59,9 +71,13 @@ wrong, fix the check and say why in the commit.
   user-facing requirement). No Gherkin.
 - Assertions use `testify` (`require` to stop the test, `assert` to continue).
 - **No `time.Sleep` in tests as a synchronisation tool.** Wait on a condition
-  (`teatest.WaitFor`, a polling helper). Animations get an injected clock/frame
-  source so time advances explicitly.
-- Coverage gate: `.testcoverage.yml`, total ≥ 90%, ratcheting upward. `main.go`
+  (`teatest.WaitFor`, `require.Eventually`, a polling helper). Animation advances
+  by feeding `anim.TickMsg`s, so frame maths is asserted directly.
+- Golden files: representative shine-sweep frames live under
+  `internal/tui/welcome/testdata/`. Regenerate intentionally with
+  `go test ./internal/tui/welcome -run TestWordmarkGoldenFrames -update`; never
+  `-update` blindly to make a failing test pass.
+- Coverage gate: `.testcoverage.yml`, total ≥ 93%, ratcheting upward. `main.go`
   is excluded. Do not lower a threshold.
 
 ## Code style
