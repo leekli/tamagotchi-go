@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	zone "github.com/lrstanley/bubblezone"
 )
 
 const (
@@ -51,6 +52,7 @@ func NewApp(screens map[ScreenID]ScreenFactory, start ScreenID) *App {
 	if !ok {
 		panic(fmt.Sprintf("tui: no factory registered for start screen %q", start))
 	}
+	enableZones()
 	vp := viewport.New(0, 0)
 	vp.MouseWheelEnabled = true
 	return &App{
@@ -123,7 +125,9 @@ func (a *App) View() string {
 	}
 
 	helpBar := a.styles.HelpBar.Render(a.help.ShortHelpView(a.shortHelp()))
-	return lipgloss.JoinVertical(lipgloss.Left, body, helpBar)
+	// Scan the composed frame so Screens' bubblezone marks resolve to real
+	// coordinates for the next mouse event.
+	return zone.Scan(lipgloss.JoinVertical(lipgloss.Left, body, helpBar))
 }
 
 // navigate replaces the active Screen with a fresh instance of the one named by

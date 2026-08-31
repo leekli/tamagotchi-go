@@ -6,7 +6,7 @@ local-prefix: "github.com/leekli/tamagotchi-go"
 threshold:
   file: 75
   package: 80
-  total: 90
+  total: 93
 
 override:
   # main.go is entrypoint glue exercised by the smoke test, not unit tests.

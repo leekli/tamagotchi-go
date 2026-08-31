@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
+	zone "github.com/lrstanley/bubblezone"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -269,6 +270,22 @@ func TestNonScrollableScreenIsNotWrappedInViewport(t *testing.T) {
 	// A non-scrollable Screen owns every cell, so even off-area content is
 	// passed straight through rather than clipped by a viewport.
 	assert.Contains(t, app.View(), "row-099")
+}
+
+func TestViewStripsZoneMarkersFromScreenBodies(t *testing.T) {
+	t.Parallel()
+
+	zone.NewGlobal() // idempotent; NewApp also does this
+	marked := zone.Mark("app-test-zone", "CLICK HERE")
+	require.NotEqual(t, "CLICK HERE", marked, "the manager should wrap the content in markers")
+
+	screen := &fakeScreen{id: tui.WelcomeScreenID, body: marked}
+	app := tui.NewApp(staticFactories(screen), tui.WelcomeScreenID)
+	app.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	view := app.View()
+	assert.Contains(t, view, "CLICK HERE")
+	assert.NotContains(t, view, marked, "App.View should scan out the raw zone markers")
 }
 
 func TestUnhandledMessagesReachTheActiveScreen(t *testing.T) {
