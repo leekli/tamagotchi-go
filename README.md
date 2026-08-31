@@ -21,7 +21,7 @@ TUI framework.
                             ( o o)
                              >`-'
 
-              Press Enter or click to begin
+              
 ```
 
 
@@ -127,7 +127,6 @@ internal/tui/next/      Next Screen (placeholder)
 internal/anim/          fixed-rate frame clock and easing helpers
 internal/art/           embedded ASCII art loader and mirror helper
 docs/adr/               architecture decision records
-docs/plan/              per-phase task breakdowns
 .github/workflows/      CI pipeline
 ```
 
