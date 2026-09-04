@@ -20,18 +20,35 @@ func (p Pet) Advance(now time.Time) Pet {
 	}
 
 	elapsed := now.Sub(p.LastSeenAt)
-	p.Hunger = decayStat(p.Hunger, elapsed, HungerDecayInterval)
-	p.Happiness = decayStat(p.Happiness, elapsed, HappinessDecayInterval)
-	p.LastSeenAt = now
+
+	var hungerConsumed, happinessConsumed time.Duration
+	p.Hunger, hungerConsumed = decayStat(p.Hunger, elapsed, HungerDecayInterval)
+	p.Happiness, happinessConsumed = decayStat(p.Happiness, elapsed, HappinessDecayInterval)
+
+	// Advance LastSeenAt only by the smaller of the two consumed durations,
+	// not all the way to now. The Next Screen's Beat fires far more often
+	// than a decay interval (seconds vs. minutes), so resetting LastSeenAt to
+	// now on every call would discard each Beat's sub-interval progress
+	// before it ever accumulated into a whole step — Hunger/Happiness would
+	// then only ever move via a single large offline catch-up, never while
+	// the game is actually running.
+	consumed := hungerConsumed
+	if happinessConsumed < consumed {
+		consumed = happinessConsumed
+	}
+	p.LastSeenAt = p.LastSeenAt.Add(consumed)
 	return p
 }
 
 // decayStat reduces a stat by one whole point per interval elapsed, floored
-// at zero.
-func decayStat(stat int, elapsed, interval time.Duration) int {
-	stat -= int(elapsed / interval)
+// at zero, and reports how much of elapsed was actually consumed by whole
+// steps (steps * interval) — Advance uses this to preserve any leftover
+// sub-interval progress instead of discarding it.
+func decayStat(stat int, elapsed, interval time.Duration) (newStat int, consumed time.Duration) {
+	steps := int(elapsed / interval)
+	stat -= steps
 	if stat < 0 {
-		return 0
+		stat = 0
 	}
-	return stat
+	return stat, time.Duration(steps) * interval
 }

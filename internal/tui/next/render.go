@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/leekli/tamagotchi-go/internal/anim"
 	"github.com/leekli/tamagotchi-go/internal/art"
 	"github.com/leekli/tamagotchi-go/internal/pet"
 )
@@ -35,18 +36,15 @@ const (
 	babyPoseFramesPerStep = 8
 )
 
-// babyBobPattern is the Baby's vertical bob offset, one step per
-// babyBobFramesPerStep frames, mirroring welcome/character.go's bob pattern.
-var babyBobPattern = [4]int{0, -1, 0, 1}
-
 // babyPose returns the Baby's current idle pose for frame.
 func babyPose(frame int) []string {
 	return babyFrames[(frame/babyPoseFramesPerStep)%len(babyFrames)]
 }
 
-// babyBob returns the Baby's vertical bob offset for frame.
+// babyBob returns the Baby's vertical bob offset for frame, the same
+// anim.Bob pattern welcome/character.go uses for the Character's walk bob.
 func babyBob(frame int) int {
-	return babyBobPattern[(frame/babyBobFramesPerStep)%len(babyBobPattern)]
+	return anim.Bob(frame, babyBobFramesPerStep)
 }
 
 // renderArtBox draws frameArt inside a fixed-height block, offset vertically

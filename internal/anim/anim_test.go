@@ -76,6 +76,17 @@ func TestTriangleRisesThenFalls(t *testing.T) {
 	}
 }
 
+func TestBobCyclesThroughFlatUpFlatDown(t *testing.T) {
+	t.Parallel()
+
+	const framesPerStep = 4
+	got := make([]int, 8)
+	for f := 0; f < 8; f++ {
+		got[f] = anim.Bob(f*framesPerStep, framesPerStep)
+	}
+	assert.Equal(t, []int{0, -1, 0, 1, 0, -1, 0, 1}, got)
+}
+
 func TestPulseIsASmoothRaisedCosine(t *testing.T) {
 	t.Parallel()
 

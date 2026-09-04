@@ -105,6 +105,21 @@ func TestViewShowsEggBeforeHatchAndBabyAfter(t *testing.T) {
 	assert.NotContains(t, afterHatch, ".--.", "Egg art should no longer appear")
 }
 
+func TestViewDoesNotUnHatchIfTheClockGoesBackwards(t *testing.T) {
+	t.Parallel()
+
+	s := sizedScreen(t, pet.New(born), &fakeStore{})
+	s = advanceAnim(t, s, born.Add(pet.EggDuration), 1)
+	require.Contains(t, stripANSI(s.View()), "( o o)", "should be a Baby after hatching")
+
+	// A corrected system clock ticking backwards must not un-hatch the Pet.
+	s = advanceAnim(t, s, born, 1)
+
+	view := stripANSI(s.View())
+	assert.Contains(t, view, "( o o)", "should still show Baby art")
+	assert.NotContains(t, view, ".--.", "should not revert to Egg art")
+}
+
 func TestHungerAndHappinessMetersShowTheRightPips(t *testing.T) {
 	t.Parallel()
 

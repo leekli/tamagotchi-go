@@ -78,3 +78,14 @@ func Triangle(t float64) float64 {
 func Pulse(t float64) float64 {
 	return 0.5 - 0.5*math.Cos(2*math.Pi*t)
 }
+
+// bobPattern is the ±1-row vertical wobble sequence shared by every
+// character bob in the game: flat, up, flat, down.
+var bobPattern = [4]int{0, -1, 0, 1}
+
+// Bob returns the vertical bob offset for frame, advancing one step through
+// bobPattern every framesPerStep frames. Used for the Welcome Screen's
+// walking Character and the Next Screen's idling Baby.
+func Bob(frame, framesPerStep int) int {
+	return bobPattern[(frame/framesPerStep)%len(bobPattern)]
+}

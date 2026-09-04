@@ -38,9 +38,38 @@ func TestAdvance(t *testing.T) {
 			assert.Equal(t, tt.wantHunger, advanced.Hunger)
 			assert.Equal(t, tt.wantHappiness, advanced.Happiness)
 			assert.Equal(t, pet.BaseWeight, advanced.Weight, "Weight never decays")
-			assert.Equal(t, now, advanced.LastSeenAt)
+
+			// LastSeenAt only advances by whole decay steps actually
+			// consumed, not all the way to now: any sub-interval remainder is
+			// preserved for the next Advance call (see
+			// TestAdvanceAccumulatesAcrossRepeatedShortCalls).
+			wantConsumed := (tt.elapsed / pet.HungerDecayInterval) * pet.HungerDecayInterval
+			assert.Equal(t, born.Add(wantConsumed), advanced.LastSeenAt)
 		})
 	}
+}
+
+// TestAdvanceAccumulatesAcrossRepeatedShortCalls guards against the
+// regression where every Advance call reset LastSeenAt straight to now: that
+// discarded each call's sub-interval progress, so repeated short calls (the
+// Next Screen's Beat fires every 20s, far shorter than the 3-minute decay
+// interval) never accumulated into a whole decay step at all.
+func TestAdvanceAccumulatesAcrossRepeatedShortCalls(t *testing.T) {
+	t.Parallel()
+
+	born := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	p := pet.New(born)
+
+	const step = 20 * time.Second
+	now := born
+	for range 30 { // 30 * 20s = 10 minutes of continuous play
+		now = now.Add(step)
+		p = p.Advance(now)
+	}
+
+	wantSteps := int(10 * time.Minute / pet.HungerDecayInterval)
+	assert.Equal(t, pet.MaxStat-wantSteps, p.Hunger)
+	assert.Equal(t, pet.MaxStat-wantSteps, p.Happiness)
 }
 
 func TestAdvanceIgnoresClockGoingBackwards(t *testing.T) {

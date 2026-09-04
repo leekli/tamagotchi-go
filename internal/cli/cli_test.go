@@ -145,6 +145,24 @@ func TestLoadPetFallsBackToFreshEggOnCorruptSaveFile(t *testing.T) {
 	assert.NotEmpty(t, errOut.String(), "a corrupt save should log a one-line notice")
 }
 
+func TestLoadPetFallsBackToNoopStoreWhenSavePathCannotBeResolved(t *testing.T) {
+	t.Setenv("HOME", "")
+	t.Setenv("XDG_CONFIG_HOME", "") // os.UserConfigDir fails with both unset
+	var errOut bytes.Buffer
+
+	p, store := loadPet(&errOut, "")
+
+	assert.Equal(t, pet.MaxStat, p.Hunger, "should still start a playable fresh Egg")
+	assert.NotEmpty(t, errOut.String(), "should log why persistence is unavailable")
+
+	// The fallback store must not error or panic when the Screen saves to
+	// it — it has nowhere to write, so it silently discards instead.
+	require.NoError(t, store.Save(p))
+	_, ok, err := store.Load()
+	require.NoError(t, err)
+	assert.False(t, ok)
+}
+
 func TestLoadPetUsesDefaultSavePathWhenNoOverrideGiven(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", dir)

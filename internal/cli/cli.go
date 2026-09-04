@@ -85,7 +85,12 @@ func loadPet(stderr io.Writer, pathOverride string) (pet.Pet, pet.Store) {
 		var err error
 		path, err = pet.DefaultSavePath()
 		if err != nil {
+			// There is nowhere sensible to write: fall back to a Store that
+			// discards every Save, rather than one that would repeatedly
+			// fail disk I/O against an empty path for the rest of the
+			// session.
 			fmt.Fprintf(stderr, "tamagotchi-go: resolving save path: %v\n", err)
+			return pet.New(time.Now()), noopStore{}
 		}
 	}
 	store := pet.NewFileStore(path)
@@ -99,6 +104,15 @@ func loadPet(stderr io.Writer, pathOverride string) (pet.Pet, pet.Store) {
 	}
 	return loaded.Advance(time.Now()), store
 }
+
+// noopStore is used only when the save path itself can't be resolved (an
+// unusual environment where os.UserConfigDir fails). It discards every Save
+// rather than persist to a broken path.
+type noopStore struct{}
+
+func (noopStore) Load() (pet.Pet, bool, error) { return pet.Pet{}, false, nil }
+
+func (noopStore) Save(pet.Pet) error { return nil }
 
 func runProgram(app *tui.App) error {
 	_, err := tea.NewProgram(app, tea.WithAltScreen(), tea.WithMouseCellMotion()).Run()

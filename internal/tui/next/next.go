@@ -69,7 +69,12 @@ func (s *Screen) Update(msg tea.Msg) (tui.Screen, tea.Cmd) {
 
 	case anim.TickMsg:
 		s.frame++
-		s.now = msg.Time
+		if msg.Time.After(s.now) {
+			// Only ever move forward: a corrected system clock ticking
+			// backwards must not un-hatch the Pet or show a negative Age, the
+			// same discipline pet.Advance already applies to Decay.
+			s.now = msg.Time
+		}
 		return s, anim.Tick()
 
 	case pet.BeatMsg:
