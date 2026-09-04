@@ -5,6 +5,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/leekli/tamagotchi-go/internal/anim"
 	"github.com/leekli/tamagotchi-go/internal/art"
 )
 
@@ -58,7 +59,7 @@ func charState(frame int) (x int, dir facing, bob, step int) {
 		x, dir = period-phase, facingLeft
 	}
 
-	bob = []int{0, -1, 0, 1}[cell%4]
+	bob = anim.Bob(frame, charFramesPerCell)
 	step = cell % 2
 	return x, dir, bob, step
 }

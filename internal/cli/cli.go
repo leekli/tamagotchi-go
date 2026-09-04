@@ -6,11 +6,13 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 
+	"github.com/leekli/tamagotchi-go/internal/pet"
 	"github.com/leekli/tamagotchi-go/internal/tui"
 	"github.com/leekli/tamagotchi-go/internal/tui/next"
 	"github.com/leekli/tamagotchi-go/internal/tui/welcome"
@@ -39,6 +41,7 @@ func run(args []string, stdout, stderr io.Writer, start starter) int {
 	fs.SetOutput(stderr)
 	showVersion := fs.Bool("version", false, "print version information and exit")
 	noColor := fs.Bool("no-color", false, "disable colour output")
+	savePath := fs.String("save-path", "", "override the save file location (mainly for testing)")
 
 	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
@@ -56,7 +59,9 @@ func run(args []string, stdout, stderr io.Writer, start starter) int {
 		lipgloss.SetColorProfile(termenv.Ascii)
 	}
 
-	app := tui.NewApp(ScreenFactories(), tui.WelcomeScreenID)
+	initial, store := loadPet(stderr, *savePath)
+
+	app := tui.NewApp(ScreenFactories(initial, store), tui.WelcomeScreenID)
 	if err := start(app); err != nil {
 		fmt.Fprintf(stderr, "tamagotchi-go: %v\n", err)
 		return 1
@@ -64,16 +69,71 @@ func run(args []string, stdout, stderr io.Writer, start starter) int {
 	return 0
 }
 
+// loadPet resolves the save file and loads the persisted Pet, falling back
+// to a fresh Egg when there is no save file yet or it can't be read. On a
+// successful load it immediately applies offline catch-up: Decay for
+// whatever real time elapsed since the game last ran, using the same pure
+// Advance the running Screen uses per Beat. pathOverride, when non-empty,
+// replaces the default save location (the --save-path flag).
+//
+// This is the one synchronous, startup-time load: everything downstream is
+// either pure in-memory logic or deferred tea.Cmd I/O, never direct I/O from
+// a Screen's Update.
+func loadPet(stderr io.Writer, pathOverride string) (pet.Pet, pet.Store) {
+	path := pathOverride
+	if path == "" {
+		var err error
+		path, err = pet.DefaultSavePath()
+		if err != nil {
+			// There is nowhere sensible to write: fall back to a Store that
+			// discards every Save, rather than one that would repeatedly
+			// fail disk I/O against an empty path for the rest of the
+			// session.
+			fmt.Fprintf(stderr, "tamagotchi-go: resolving save path: %v\n", err)
+			return pet.New(time.Now()), noopStore{}
+		}
+	}
+	store := pet.NewFileStore(path)
+
+	loaded, ok, err := store.Load()
+	if err != nil {
+		fmt.Fprintf(stderr, "tamagotchi-go: loading save file: %v\n", err)
+	}
+	if !ok {
+		return pet.New(time.Now()), store
+	}
+	return loaded.Advance(time.Now()), store
+}
+
+// noopStore is used only when the save path itself can't be resolved (an
+// unusual environment where os.UserConfigDir fails). It discards every Save
+// rather than persist to a broken path.
+type noopStore struct{}
+
+func (noopStore) Load() (pet.Pet, bool, error) { return pet.Pet{}, false, nil }
+
+func (noopStore) Save(pet.Pet) error { return nil }
+
 func runProgram(app *tui.App) error {
 	_, err := tea.NewProgram(app, tea.WithAltScreen(), tea.WithMouseCellMotion()).Run()
 	return err
 }
 
-// ScreenFactories returns the production Screen wiring: every ScreenID mapped to
-// the factory that builds it.
-func ScreenFactories() map[tui.ScreenID]tui.ScreenFactory {
+// ScreenFactories returns the production Screen wiring: every ScreenID
+// mapped to the factory that builds it. The Next Screen's factory closes
+// over the already-loaded Pet and Store, since ScreenFactory itself stays
+// zero-arg.
+//
+// Known, acceptable limitation: because the closure captures initial once,
+// re-navigating to the Next Screen would reset it to that captured value
+// rather than resuming where the player left off. Nothing currently
+// navigates away from the Next Screen (ADR-0003: replace semantics, no
+// history stack; the Next Screen is presently a terminal destination), so
+// this isn't a live bug — just a flag for whoever adds a route back to the
+// Welcome Screen.
+func ScreenFactories(initial pet.Pet, store pet.Store) map[tui.ScreenID]tui.ScreenFactory {
 	return map[tui.ScreenID]tui.ScreenFactory{
 		tui.WelcomeScreenID: welcome.New,
-		tui.NextScreenID:    next.New,
+		tui.NextScreenID:    func() tui.Screen { return next.New(initial, store) },
 	}
 }

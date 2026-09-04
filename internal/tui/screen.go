@@ -42,6 +42,16 @@ type Screen interface {
 	Scrollable() bool
 }
 
+// QuitHandler is an optional interface a Screen implements to run a command
+// before the App quits — e.g. flushing persisted state. It only fires for a
+// quit that reaches the App's own Ctrl+C handling; a Screen that handles a
+// local quit key itself and returns tea.Quit directly bypasses it entirely,
+// so a Screen with state to flush must not do that without also honouring
+// OnQuit itself.
+type QuitHandler interface {
+	OnQuit() tea.Cmd
+}
+
 // NavigateMsg asks the App to replace the active Screen with the one named by To.
 type NavigateMsg struct {
 	To ScreenID
