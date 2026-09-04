@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -10,8 +11,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/leekli/tamagotchi-go/internal/pet"
 	"github.com/leekli/tamagotchi-go/internal/tui"
 )
+
+// newTestApp builds a fully wired App with a fresh Pet, persisted to a temp
+// save file isolated to this test.
+func newTestApp(t *testing.T) *tui.App {
+	t.Helper()
+	store := pet.NewFileStore(filepath.Join(t.TempDir(), "save.json"))
+	return tui.NewApp(ScreenFactories(pet.New(time.Now()), store), tui.WelcomeScreenID)
+}
 
 // TestWelcomeToNextToQuitFlow drives the fully wired App through its Phase 1
 // journey: land on the Welcome Screen, press Enter to reach the Next Screen,
@@ -19,7 +29,7 @@ import (
 func TestWelcomeToNextToQuitFlow(t *testing.T) {
 	t.Parallel()
 
-	app := tui.NewApp(ScreenFactories(), tui.WelcomeScreenID)
+	app := newTestApp(t)
 	tm := teatest.NewTestModel(t, app, teatest.WithInitialTermSize(100, 30))
 
 	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
@@ -29,7 +39,7 @@ func TestWelcomeToNextToQuitFlow(t *testing.T) {
 	tm.Send(tea.KeyMsg{Type: tea.KeyEnter})
 
 	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
-		return bytes.Contains(b, []byte("Nothing here yet"))
+		return bytes.Contains(b, []byte("Hunger"))
 	}, teatest.WithDuration(3*time.Second))
 
 	tm.Send(tea.KeyMsg{Type: tea.KeyCtrlC})
@@ -45,7 +55,7 @@ func TestWelcomeToNextToQuitFlow(t *testing.T) {
 func TestWelcomeScreenQuitsOnEsc(t *testing.T) {
 	t.Parallel()
 
-	app := tui.NewApp(ScreenFactories(), tui.WelcomeScreenID)
+	app := newTestApp(t)
 	tm := teatest.NewTestModel(t, app, teatest.WithInitialTermSize(100, 30))
 
 	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
@@ -65,7 +75,7 @@ func TestWelcomeScreenQuitsOnEsc(t *testing.T) {
 func TestResizeNoticeShownThenClearedOnGrow(t *testing.T) {
 	t.Parallel()
 
-	app := tui.NewApp(ScreenFactories(), tui.WelcomeScreenID)
+	app := newTestApp(t)
 	tm := teatest.NewTestModel(t, app, teatest.WithInitialTermSize(40, 10))
 
 	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
@@ -88,7 +98,7 @@ func TestResizeNoticeShownThenClearedOnGrow(t *testing.T) {
 func TestWelcomeScreenWandersWithoutInput(t *testing.T) {
 	t.Parallel()
 
-	app := tui.NewApp(ScreenFactories(), tui.WelcomeScreenID)
+	app := newTestApp(t)
 	tm := teatest.NewTestModel(t, app, teatest.WithInitialTermSize(100, 30))
 
 	columns := map[int]bool{}
@@ -113,7 +123,7 @@ func TestWelcomeScreenWandersWithoutInput(t *testing.T) {
 func TestPromptClickNavigates(t *testing.T) {
 	t.Parallel()
 
-	app := tui.NewApp(ScreenFactories(), tui.WelcomeScreenID)
+	app := newTestApp(t)
 	tm := teatest.NewTestModel(t, app, teatest.WithInitialTermSize(100, 30))
 
 	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
@@ -132,7 +142,7 @@ func TestPromptClickNavigates(t *testing.T) {
 	}
 
 	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
-		return bytes.Contains(b, []byte("Nothing here yet"))
+		return bytes.Contains(b, []byte("Hunger"))
 	}, teatest.WithDuration(3*time.Second))
 
 	tm.Send(tea.KeyMsg{Type: tea.KeyCtrlC})

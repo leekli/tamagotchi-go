@@ -57,6 +57,8 @@ func TestBinaryLaunchesAndQuits(t *testing.T) {
 	require.NoError(t, build.Run(), "building the binary")
 
 	cmd := exec.Command(bin)
+	// Keep the save-file load off any real user config directory.
+	cmd.Env = append(os.Environ(), "XDG_CONFIG_HOME="+t.TempDir())
 	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: 30, Cols: 100})
 	require.NoError(t, err)
 	defer func() { _ = ptmx.Close() }()
@@ -89,7 +91,7 @@ func TestBinaryLaunchesAndQuits(t *testing.T) {
 
 	_, err = ptmx.Write([]byte("\r"))
 	require.NoError(t, err)
-	waitForOutput(t, out, "Nothing here yet")
+	waitForOutput(t, out, "Hunger")
 
 	_, err = ptmx.Write([]byte{0x03}) // Ctrl+C
 	require.NoError(t, err)

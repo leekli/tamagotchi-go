@@ -3,11 +3,14 @@ package cli
 import (
 	"bytes"
 	"errors"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/leekli/tamagotchi-go/internal/pet"
 	"github.com/leekli/tamagotchi-go/internal/tui"
 )
 
@@ -45,6 +48,7 @@ func TestRunHelpExitsZero(t *testing.T) {
 }
 
 func TestRunStartsProgramAndReportsSuccess(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir()) // keep the save-path load off any real user config
 	var out, errOut bytes.Buffer
 	started := false
 
@@ -61,6 +65,7 @@ func TestRunStartsProgramAndReportsSuccess(t *testing.T) {
 }
 
 func TestRunReportsProgramFailure(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir()) // keep the save-path load off any real user config
 	var out, errOut bytes.Buffer
 
 	code := run([]string{"--no-color"}, &out, &errOut, func(*tui.App) error {
@@ -83,7 +88,8 @@ func TestRunExportedEntrypointDelegates(t *testing.T) {
 }
 
 func TestScreenFactoriesCoverEveryScreenID(t *testing.T) {
-	factories := ScreenFactories()
+	store := pet.NewFileStore(filepath.Join(t.TempDir(), "save.json"))
+	factories := ScreenFactories(pet.New(time.Now()), store)
 
 	for _, id := range tui.AllScreenIDs() {
 		factory, ok := factories[id]
