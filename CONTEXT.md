@@ -19,9 +19,10 @@ prompt to begin. Navigating away from it hands control to the Next Screen.
 _Avoid_: Splash (informal use is fine), Home, Menu, Landing
 
 **Next Screen**:
-The Screen the player reaches from the Welcome Screen. For now it holds placeholder
-text and nothing else; its real content is a later feature.
-_Avoid_: Placeholder Screen (describes its current state, not its identity), Game Screen
+The Screen the player reaches from the Welcome Screen. It shows the Pet: its
+Stage art with a small idle animation, its Hunger and Happiness meters, and
+its Age and Weight.
+_Avoid_: Placeholder Screen (describes its former state, not its identity), Game Screen
 
 ### On-screen art
 
@@ -82,6 +83,35 @@ be tested against. The begin prompt is the Welcome Screen's only click zone.
 _Avoid_: hitbox, hotspot, target (bare)
 
 **Pet**:
-The creature the player will raise, feed, and care for. A later feature — absent from
-the first two delivery phases.
+The creature the player raises. Distinct from the Character (decorative,
+Welcome Screen only).
 _Avoid_: Tamagotchi (ambiguous with the application's name), Character, creature
+
+### The Pet
+
+**Stage**:
+The Pet's life stage: Egg or Baby, for now. (Child/Teen/Adult evolution is a
+later feature.)
+_Avoid_: level, form (informal use of "Marutchi form" for the Character is fine)
+
+**Hatch**:
+The one-time transition from Egg to Baby, a fixed real-time interval after
+the Pet is first created (`CreatedAt`, i.e. birth) — not the moment the Pet
+struct is instantiated in memory on every load.
+_Avoid_: spawn, level up
+
+**Stat**:
+One of the Pet's numeric attributes: Hunger, Happiness, or Weight. Hunger and
+Happiness Decay over time; Weight is fixed at birth for now — a later feature
+makes it dynamic.
+_Avoid_: meter (that is the pip display), stat point
+
+**Decay**:
+The automatic, time-driven reduction of Hunger and Happiness. Decay is a pure
+function of elapsed wall-clock time, not of frames or player action, so it
+keeps moving whether or not the game is running.
+_Avoid_: drain, tick down
+
+**Save file**:
+The single JSON file holding the Pet's persisted state between runs.
+_Avoid_: save slot, profile (there is only ever one Pet, one save)

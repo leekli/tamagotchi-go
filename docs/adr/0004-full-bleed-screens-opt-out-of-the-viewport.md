@@ -17,3 +17,12 @@ today, longer informational Screens later — keep `Scrollable() == true` and
 render at natural height. The contract in `internal/tui` already describes both
 modes; no code there changed. New Screens choose: authored-to-fit and animated
 → full-bleed; free-flowing text → scrollable.
+
+## Update (Pet domain model & the Next Screen's real content)
+
+The Next Screen is no longer the free-flowing placeholder this ADR described:
+it now shows the Pet's art, meters, and stats, authored to fit the minimum
+80×24 terminal and animated every frame — the same shape as the Welcome
+Screen. It has switched to `Scrollable() == false` accordingly. The original
+reasoning above stands for any future Screen whose content can genuinely
+outgrow the body area; it just no longer describes the Next Screen.

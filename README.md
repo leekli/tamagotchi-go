@@ -25,6 +25,9 @@ TUI framework.
 
 ## Features
 
+- A living, persisted Pet on the Next Screen: it's born an Egg, hatches into a
+  Baby, and its Hunger and Happiness decay over real elapsed time — whether or
+  not the game is running. State survives a restart (`internal/pet`).
 - A screen-routed TUI that clears the terminal on entry and restores it on exit.
 - A hand-authored ASCII wordmark with a one-pass shine sweep, a wandering
   animated Character, and a pulsing begin prompt — all on a deterministic,
@@ -66,7 +69,8 @@ go install github.com/leekli/tamagotchi-go/cmd/tamagotchi-go@latest
 tamagotchi-go
 ```
 
-Flags: `--version`, `--no-color`, `--help`.
+Flags: `--version`, `--no-color`, `--save-path` (override the save file
+location, mainly for testing), `--help`.
 
 ## Testing
 
@@ -111,6 +115,13 @@ fixed-rate frame clock and easing helpers, injectable so animation is
 deterministic under test) and `internal/art` (a `//go:embed` loader for the
 hand-authored ASCII art, plus a left-right mirror helper).
 
+`internal/pet` is the game's first domain package: the `Pet` type, its
+derived Stage and Age, a pure `Advance(now)` Decay function, and a `Store`
+interface (file-backed in production) for persistence. It performs no direct
+I/O itself — loading happens once at startup in `internal/cli`, and saving
+from the running Next Screen happens via a deferred command, on its own slow
+simulation clock and again on quit.
+
 Decisions with lasting consequences are recorded in
 [`docs/adr/`](docs/adr/). The domain vocabulary is defined in
 [`CONTEXT.md`](CONTEXT.md).
@@ -122,7 +133,8 @@ cmd/tamagotchi-go/      entrypoint
 internal/cli/           command-line argument wiring
 internal/tui/           App router, Screen interface, shared styles and keys
 internal/tui/welcome/   Welcome Screen (wordmark, shine sweep, Character, prompt)
-internal/tui/next/      Next Screen (placeholder)
+internal/tui/next/      Next Screen (the Pet: art, meters, age, weight)
+internal/pet/           Pet domain model: Stage, Decay, and persistence
 internal/anim/          fixed-rate frame clock and easing helpers
 internal/art/           embedded ASCII art loader and mirror helper
 docs/adr/               architecture decision records
