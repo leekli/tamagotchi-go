@@ -2,6 +2,7 @@ package tui_test
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -53,6 +54,40 @@ func (h *helpFakeScreen) Update(msg tea.Msg) (tui.Screen, tea.Cmd) {
 }
 
 func (h *helpFakeScreen) ShortHelp() []key.Binding { return []key.Binding{h.binding} }
+
+// quitFakeScreen also implements tui.QuitHandler.
+type quitFakeScreen struct {
+	*fakeScreen
+	quitCmd     tea.Cmd
+	onQuitCalls int
+}
+
+func (q *quitFakeScreen) Update(msg tea.Msg) (tui.Screen, tea.Cmd) {
+	q.fakeScreen.Update(msg)
+	return q, nil
+}
+
+func (q *quitFakeScreen) OnQuit() tea.Cmd {
+	q.onQuitCalls++
+	return q.quitCmd
+}
+
+// execSequence runs a tea.Sequence's returned message (an unexported slice
+// of tea.Cmd) and collects the resulting messages in order, so tests can
+// assert on it without a real tea.Program.
+func execSequence(t *testing.T, msg tea.Msg) []tea.Msg {
+	t.Helper()
+	v := reflect.ValueOf(msg)
+	require.Equal(t, reflect.Slice, v.Kind(), "expected a tea.Sequence message")
+
+	out := make([]tea.Msg, 0, v.Len())
+	for i := 0; i < v.Len(); i++ {
+		cmd, ok := v.Index(i).Interface().(tea.Cmd)
+		require.True(t, ok)
+		out = append(out, cmd())
+	}
+	return out
+}
 
 func staticFactories(screens ...tui.Screen) map[tui.ScreenID]tui.ScreenFactory {
 	m := make(map[tui.ScreenID]tui.ScreenFactory, len(screens))
@@ -122,6 +157,41 @@ func TestQuitKeysReturnQuitCommand(t *testing.T) {
 			assert.True(t, isQuit, "expected tea.QuitMsg")
 		})
 	}
+}
+
+func TestQuitSequencesOnQuitBeforeQuitting(t *testing.T) {
+	t.Parallel()
+
+	type flushedMsg struct{}
+	screen := &quitFakeScreen{
+		fakeScreen: &fakeScreen{id: tui.WelcomeScreenID},
+		quitCmd:    func() tea.Msg { return flushedMsg{} },
+	}
+	app := tui.NewApp(staticFactories(screen), tui.WelcomeScreenID)
+
+	_, cmd := sendKey(t, app, tea.KeyCtrlC)
+	require.NotNil(t, cmd)
+
+	msgs := execSequence(t, cmd())
+	require.Len(t, msgs, 2)
+	assert.IsType(t, flushedMsg{}, msgs[0], "OnQuit's command should run first")
+	_, isQuit := msgs[1].(tea.QuitMsg)
+	assert.True(t, isQuit, "expected tea.QuitMsg second")
+	assert.Equal(t, 1, screen.onQuitCalls)
+}
+
+func TestQuitWithoutQuitHandlerStillQuitsCleanly(t *testing.T) {
+	t.Parallel()
+
+	// A Screen that does not implement QuitHandler (the *fakeScreen case,
+	// covered by TestQuitKeysReturnQuitCommand) is the regression guard for
+	// existing behaviour; this proves the QuitHandler branch is additive.
+	app := tui.NewApp(staticFactories(&fakeScreen{id: tui.WelcomeScreenID}), tui.WelcomeScreenID)
+	_, cmd := sendKey(t, app, tea.KeyCtrlC)
+
+	require.NotNil(t, cmd)
+	_, isQuit := cmd().(tea.QuitMsg)
+	assert.True(t, isQuit, "expected a plain tea.QuitMsg with no QuitHandler")
 }
 
 func TestCtrlQIsNotAQuitKey(t *testing.T) {

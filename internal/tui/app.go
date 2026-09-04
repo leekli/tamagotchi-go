@@ -78,6 +78,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		if key.Matches(msg, a.keys.Quit) {
+			if qh, ok := a.current.(QuitHandler); ok {
+				return a, tea.Sequence(qh.OnQuit(), tea.Quit)
+			}
 			return a, tea.Quit
 		}
 
