@@ -158,8 +158,15 @@ func TestAcceptance_AdvanceAndQuit(t *testing.T) {
 
 	t.Run("given the Screen when Ctrl+C is pressed then the Screen itself does not begin", func(t *testing.T) {
 		s, cmd := newScreen(t).Update(tea.KeyMsg{Type: tea.KeyCtrlC})
-		assert.Nil(t, cmd, "quit is the App's job, not a begin")
+		assert.Nil(t, cmd, "Ctrl+C quitting is the App's job, not a begin")
 		assert.Equal(t, tui.WelcomeScreenID, s.ID())
+	})
+
+	t.Run("given the Screen when Esc is pressed then it quits", func(t *testing.T) {
+		_, cmd := newScreen(t).Update(tea.KeyMsg{Type: tea.KeyEsc})
+		require.NotNil(t, cmd, "Esc is the Welcome Screen's own quit key")
+		_, isQuit := cmd().(tea.QuitMsg)
+		assert.True(t, isQuit, "expected tea.QuitMsg")
 	})
 }
 

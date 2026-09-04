@@ -41,7 +41,8 @@ TUI framework.
 |-----|--------|
 | <kbd>Enter</kbd>, or a click on the begin prompt | Begin (advance from the Welcome Screen) |
 | <kbd>↑</kbd> <kbd>↓</kbd> <kbd>PgUp</kbd> <kbd>PgDn</kbd> <kbd>Home</kbd> <kbd>End</kbd> / wheel | Scroll (on scrollable Screens) |
-| <kbd>Ctrl</kbd>+<kbd>Q</kbd> (or <kbd>Ctrl</kbd>+<kbd>C</kbd>) | Quit |
+| <kbd>Ctrl</kbd>+<kbd>C</kbd> | Quit (any Screen) |
+| <kbd>Esc</kbd> | Quit (Welcome Screen only) |
 
 ## Requirements
 

@@ -134,15 +134,26 @@ func TestScreenIsNotScrollable(t *testing.T) {
 		"the Welcome Screen paints every cell and is framed without a viewport")
 }
 
-func TestShortHelpAdvertisesBegin(t *testing.T) {
+func TestShortHelpAdvertisesBeginAndQuit(t *testing.T) {
 	t.Parallel()
 
 	hp, ok := newScreen(t).(tui.HelpProvider)
 	require.True(t, ok, "Welcome Screen should provide help hints")
 
 	bindings := hp.ShortHelp()
-	require.Len(t, bindings, 1)
+	require.Len(t, bindings, 2)
 	assert.Equal(t, "begin", bindings[0].Help().Desc)
+	assert.Equal(t, "esc", bindings[1].Help().Key)
+	assert.Equal(t, "quit", bindings[1].Help().Desc)
+}
+
+func TestEscQuits(t *testing.T) {
+	t.Parallel()
+
+	_, cmd := newScreen(t).Update(tea.KeyMsg{Type: tea.KeyEsc})
+	require.NotNil(t, cmd)
+	_, isQuit := cmd().(tea.QuitMsg)
+	assert.True(t, isQuit, "expected tea.QuitMsg")
 }
 
 func TestViewShowsWordmarkAndPrompt(t *testing.T) {

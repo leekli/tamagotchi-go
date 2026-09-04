@@ -108,7 +108,6 @@ func TestQuitKeysReturnQuitCommand(t *testing.T) {
 	t.Parallel()
 
 	for name, kt := range map[string]tea.KeyType{
-		"ctrl+q": tea.KeyCtrlQ,
 		"ctrl+c": tea.KeyCtrlC,
 	} {
 		kt := kt
@@ -123,6 +122,17 @@ func TestQuitKeysReturnQuitCommand(t *testing.T) {
 			assert.True(t, isQuit, "expected tea.QuitMsg")
 		})
 	}
+}
+
+func TestCtrlQIsNotAQuitKey(t *testing.T) {
+	t.Parallel()
+
+	screen := &fakeScreen{id: tui.WelcomeScreenID}
+	app := tui.NewApp(staticFactories(screen), tui.WelcomeScreenID)
+	_, cmd := sendKey(t, app, tea.KeyCtrlQ)
+
+	assert.Nil(t, cmd, "Ctrl+Q should no longer quit the App")
+	assert.Equal(t, 1, screen.updateCalls, "an unhandled key should still reach the active Screen")
 }
 
 func TestWindowSizeForwardsBodyAreaToScreen(t *testing.T) {

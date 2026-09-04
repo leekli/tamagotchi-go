@@ -7,13 +7,13 @@ type KeyMap struct {
 	Quit key.Binding
 }
 
-// DefaultKeyMap returns the standard App bindings: Ctrl+Q (and the Unix-habitual
-// Ctrl+C) always quit.
+// DefaultKeyMap returns the standard App bindings: the Unix-habitual Ctrl+C
+// always quits, whatever Screen is active.
 func DefaultKeyMap() KeyMap {
 	return KeyMap{
 		Quit: key.NewBinding(
-			key.WithKeys("ctrl+q", "ctrl+c"),
-			key.WithHelp("ctrl+q", "quit"),
+			key.WithKeys("ctrl+c"),
+			key.WithHelp("ctrl+c", "quit"),
 		),
 	}
 }

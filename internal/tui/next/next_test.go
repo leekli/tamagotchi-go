@@ -36,7 +36,7 @@ func TestViewShowsPlaceholderTextSizedToArea(t *testing.T) {
 	s, _ = s.Update(tea.WindowSizeMsg{Width: 80, Height: 23})
 
 	view := s.View()
-	assert.Contains(t, view, "Nothing here yet. Ctrl+Q to quit.")
+	assert.Contains(t, view, "Nothing here yet. Ctrl+C to quit.")
 
 	lines := 1
 	for _, r := range view {

@@ -45,7 +45,7 @@ func waitForOutput(t *testing.T, out *syncBuffer, want string) {
 
 // TestBinaryLaunchesAndQuits builds the real binary and drives it through a
 // pseudo-terminal: it must show the Welcome Screen, advance on Enter, and exit
-// cleanly on Ctrl+Q.
+// cleanly on Ctrl+C.
 func TestBinaryLaunchesAndQuits(t *testing.T) {
 	if testing.Short() {
 		t.Skip("smoke test builds and launches the binary")
@@ -91,7 +91,7 @@ func TestBinaryLaunchesAndQuits(t *testing.T) {
 	require.NoError(t, err)
 	waitForOutput(t, out, "Nothing here yet")
 
-	_, err = ptmx.Write([]byte{0x11}) // Ctrl+Q
+	_, err = ptmx.Write([]byte{0x03}) // Ctrl+C
 	require.NoError(t, err)
 
 	exited := make(chan error, 1)
@@ -99,9 +99,9 @@ func TestBinaryLaunchesAndQuits(t *testing.T) {
 
 	select {
 	case err := <-exited:
-		require.NoError(t, err, "binary should exit 0 on Ctrl+Q")
+		require.NoError(t, err, "binary should exit 0 on Ctrl+C")
 	case <-time.After(5 * time.Second):
 		_ = cmd.Process.Kill()
-		t.Fatal("binary did not exit after Ctrl+Q")
+		t.Fatal("binary did not exit after Ctrl+C")
 	}
 }

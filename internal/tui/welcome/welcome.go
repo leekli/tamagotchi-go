@@ -34,6 +34,7 @@ type Screen struct {
 
 type keyMap struct {
 	Begin key.Binding
+	Quit  key.Binding
 }
 
 func defaultKeyMap() keyMap {
@@ -41,6 +42,10 @@ func defaultKeyMap() keyMap {
 		Begin: key.NewBinding(
 			key.WithKeys("enter"),
 			key.WithHelp("enter", "begin"),
+		),
+		Quit: key.NewBinding(
+			key.WithKeys("esc"),
+			key.WithHelp("esc", "quit"),
 		),
 	}
 }
@@ -78,6 +83,9 @@ func (s *Screen) Update(msg tea.Msg) (tui.Screen, tea.Cmd) {
 		if key.Matches(msg, s.keys.Begin) {
 			return s, tui.Navigate(tui.NextScreenID)
 		}
+		if key.Matches(msg, s.keys.Quit) {
+			return s, tea.Quit
+		}
 
 	case tea.MouseMsg:
 		if isBeginClick(msg) {
@@ -102,7 +110,7 @@ func isBeginClick(msg tea.MouseMsg) bool {
 
 // ShortHelp implements tui.HelpProvider.
 func (s *Screen) ShortHelp() []key.Binding {
-	return []key.Binding{s.keys.Begin}
+	return []key.Binding{s.keys.Begin, s.keys.Quit}
 }
 
 // View implements tui.Screen.

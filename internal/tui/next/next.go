@@ -12,7 +12,7 @@ import (
 )
 
 // placeholderText is the entire content of the Next Screen for now.
-const placeholderText = "Nothing here yet. Ctrl+Q to quit."
+const placeholderText = "Nothing here yet. Ctrl+C to quit."
 
 // Screen is the Next Screen.
 type Screen struct {

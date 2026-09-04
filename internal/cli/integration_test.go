@@ -15,7 +15,7 @@ import (
 
 // TestWelcomeToNextToQuitFlow drives the fully wired App through its Phase 1
 // journey: land on the Welcome Screen, press Enter to reach the Next Screen,
-// then quit with Ctrl+Q.
+// then quit with Ctrl+C.
 func TestWelcomeToNextToQuitFlow(t *testing.T) {
 	t.Parallel()
 
@@ -32,12 +32,32 @@ func TestWelcomeToNextToQuitFlow(t *testing.T) {
 		return bytes.Contains(b, []byte("Nothing here yet"))
 	}, teatest.WithDuration(3*time.Second))
 
-	tm.Send(tea.KeyMsg{Type: tea.KeyCtrlQ})
+	tm.Send(tea.KeyMsg{Type: tea.KeyCtrlC})
 	tm.WaitFinished(t, teatest.WithFinalTimeout(3*time.Second))
 
 	final, ok := tm.FinalModel(t).(*tui.App)
 	require.True(t, ok)
 	assert.Equal(t, tui.NextScreenID, final.Current().ID())
+}
+
+// TestWelcomeScreenQuitsOnEsc proves the Welcome Screen's own Esc binding
+// quits the fully wired App, as an alternative to the App-wide Ctrl+C.
+func TestWelcomeScreenQuitsOnEsc(t *testing.T) {
+	t.Parallel()
+
+	app := tui.NewApp(ScreenFactories(), tui.WelcomeScreenID)
+	tm := teatest.NewTestModel(t, app, teatest.WithInitialTermSize(100, 30))
+
+	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
+		return bytes.Contains(b, []byte("Press Enter or click to begin"))
+	}, teatest.WithDuration(3*time.Second))
+
+	tm.Send(tea.KeyMsg{Type: tea.KeyEsc})
+	tm.WaitFinished(t, teatest.WithFinalTimeout(3*time.Second))
+
+	final, ok := tm.FinalModel(t).(*tui.App)
+	require.True(t, ok)
+	assert.Equal(t, tui.WelcomeScreenID, final.Current().ID())
 }
 
 // TestResizeNoticeShownThenClearedOnGrow proves the small-terminal guard is live
@@ -115,7 +135,7 @@ func TestPromptClickNavigates(t *testing.T) {
 		return bytes.Contains(b, []byte("Nothing here yet"))
 	}, teatest.WithDuration(3*time.Second))
 
-	tm.Send(tea.KeyMsg{Type: tea.KeyCtrlQ})
+	tm.Send(tea.KeyMsg{Type: tea.KeyCtrlC})
 	tm.WaitFinished(t, teatest.WithFinalTimeout(3*time.Second))
 
 	final, ok := tm.FinalModel(t).(*tui.App)
