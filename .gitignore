@@ -13,3 +13,6 @@ coverage.*
 
 # Private working brief
 PLAN.md
+
+# Local-only Claude Code settings (per-machine tool preferences)
+.claude/settings.local.json

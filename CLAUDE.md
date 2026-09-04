@@ -99,3 +99,15 @@ wrong, fix the check and say why in the commit.
 - Work happens on a branch per phase/feature; `main` stays green.
 - Use the vocabulary from `CONTEXT.md` in code and prose. If you need a new term,
   add it there in the same change.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live as GitHub issues in `leekli/tamagotchi-go`, managed via the
+`gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` and `docs/adr/` at the repo root. See
+`docs/agents/domain.md`.
