@@ -41,6 +41,7 @@ func run(args []string, stdout, stderr io.Writer, start starter) int {
 	fs.SetOutput(stderr)
 	showVersion := fs.Bool("version", false, "print version information and exit")
 	noColor := fs.Bool("no-color", false, "disable colour output")
+	savePath := fs.String("save-path", "", "override the save file location (mainly for testing)")
 
 	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
@@ -58,7 +59,7 @@ func run(args []string, stdout, stderr io.Writer, start starter) int {
 		lipgloss.SetColorProfile(termenv.Ascii)
 	}
 
-	initial, store := loadPet(stderr)
+	initial, store := loadPet(stderr, *savePath)
 
 	app := tui.NewApp(ScreenFactories(initial, store), tui.WelcomeScreenID)
 	if err := start(app); err != nil {
@@ -69,14 +70,23 @@ func run(args []string, stdout, stderr io.Writer, start starter) int {
 }
 
 // loadPet resolves the save file and loads the persisted Pet, falling back
-// to a fresh Egg when there is no save file yet or it can't be read. This is
-// the one synchronous, startup-time load: everything downstream is either
-// pure in-memory logic or deferred tea.Cmd I/O, never direct I/O from a
-// Screen's Update.
-func loadPet(stderr io.Writer) (pet.Pet, pet.Store) {
-	path, err := pet.DefaultSavePath()
-	if err != nil {
-		fmt.Fprintf(stderr, "tamagotchi-go: resolving save path: %v\n", err)
+// to a fresh Egg when there is no save file yet or it can't be read. On a
+// successful load it immediately applies offline catch-up: Decay for
+// whatever real time elapsed since the game last ran, using the same pure
+// Advance the running Screen uses per Beat. pathOverride, when non-empty,
+// replaces the default save location (the --save-path flag).
+//
+// This is the one synchronous, startup-time load: everything downstream is
+// either pure in-memory logic or deferred tea.Cmd I/O, never direct I/O from
+// a Screen's Update.
+func loadPet(stderr io.Writer, pathOverride string) (pet.Pet, pet.Store) {
+	path := pathOverride
+	if path == "" {
+		var err error
+		path, err = pet.DefaultSavePath()
+		if err != nil {
+			fmt.Fprintf(stderr, "tamagotchi-go: resolving save path: %v\n", err)
+		}
 	}
 	store := pet.NewFileStore(path)
 
@@ -87,7 +97,7 @@ func loadPet(stderr io.Writer) (pet.Pet, pet.Store) {
 	if !ok {
 		return pet.New(time.Now()), store
 	}
-	return loaded, store
+	return loaded.Advance(time.Now()), store
 }
 
 func runProgram(app *tui.App) error {

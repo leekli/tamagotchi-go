@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -45,14 +46,15 @@ func TestRunHelpExitsZero(t *testing.T) {
 
 	assert.Equal(t, 0, code)
 	assert.Contains(t, errOut.String(), "-no-color")
+	assert.Contains(t, errOut.String(), "-save-path")
 }
 
 func TestRunStartsProgramAndReportsSuccess(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir()) // keep the save-path load off any real user config
+	savePath := filepath.Join(t.TempDir(), "save.json")
 	var out, errOut bytes.Buffer
 	started := false
 
-	code := run(nil, &out, &errOut, func(app *tui.App) error {
+	code := run([]string{"--save-path", savePath}, &out, &errOut, func(app *tui.App) error {
 		started = true
 		require.NotNil(t, app)
 		assert.Equal(t, tui.WelcomeScreenID, app.Current().ID())
@@ -65,10 +67,10 @@ func TestRunStartsProgramAndReportsSuccess(t *testing.T) {
 }
 
 func TestRunReportsProgramFailure(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir()) // keep the save-path load off any real user config
+	savePath := filepath.Join(t.TempDir(), "save.json")
 	var out, errOut bytes.Buffer
 
-	code := run([]string{"--no-color"}, &out, &errOut, func(*tui.App) error {
+	code := run([]string{"--no-color", "--save-path", savePath}, &out, &errOut, func(*tui.App) error {
 		return errors.New("boom")
 	})
 
@@ -101,4 +103,56 @@ func TestScreenFactoriesCoverEveryScreenID(t *testing.T) {
 	}
 
 	assert.Len(t, factories, len(tui.AllScreenIDs()), "factory map has entries with no matching ScreenID")
+}
+
+func TestLoadPetStartsAFreshEggWhenNoSaveFileExists(t *testing.T) {
+	var errOut bytes.Buffer
+	path := filepath.Join(t.TempDir(), "save.json")
+
+	p, store := loadPet(&errOut, path)
+
+	assert.WithinDuration(t, time.Now(), p.CreatedAt, time.Second)
+	assert.Equal(t, pet.MaxStat, p.Hunger)
+	assert.Equal(t, pet.MaxStat, p.Happiness)
+	assert.Empty(t, errOut.String(), "the first-run case is not an error")
+	assert.Equal(t, pet.NewFileStore(path), store)
+}
+
+func TestLoadPetAppliesOfflineCatchUpOnSuccessfulLoad(t *testing.T) {
+	var errOut bytes.Buffer
+	path := filepath.Join(t.TempDir(), "save.json")
+	store := pet.NewFileStore(path)
+
+	// One decay step's worth of real elapsed time since the game last ran.
+	born := time.Now().Add(-4 * time.Minute)
+	require.NoError(t, store.Save(pet.New(born)))
+
+	p, _ := loadPet(&errOut, path)
+
+	assert.Equal(t, pet.MaxStat-1, p.Hunger, "offline decay should be applied immediately on load")
+	assert.Equal(t, pet.MaxStat-1, p.Happiness)
+	assert.Empty(t, errOut.String())
+}
+
+func TestLoadPetFallsBackToFreshEggOnCorruptSaveFile(t *testing.T) {
+	var errOut bytes.Buffer
+	path := filepath.Join(t.TempDir(), "save.json")
+	require.NoError(t, os.WriteFile(path, []byte("{not json"), 0o600))
+
+	p, _ := loadPet(&errOut, path)
+
+	assert.Equal(t, pet.MaxStat, p.Hunger, "a corrupt save should start a fresh Egg instead of crashing")
+	assert.NotEmpty(t, errOut.String(), "a corrupt save should log a one-line notice")
+}
+
+func TestLoadPetUsesDefaultSavePathWhenNoOverrideGiven(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	var errOut bytes.Buffer
+
+	_, store := loadPet(&errOut, "")
+
+	want, err := pet.DefaultSavePath()
+	require.NoError(t, err)
+	assert.Equal(t, pet.NewFileStore(want), store)
 }
