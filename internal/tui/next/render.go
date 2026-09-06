@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	zone "github.com/lrstanley/bubblezone"
 
 	"github.com/leekli/tamagotchi-go/internal/anim"
 	"github.com/leekli/tamagotchi-go/internal/art"
@@ -22,6 +23,10 @@ var babyFrames = [2][]string{
 	art.MustLoad("marutchi-walk-1.txt"),
 	art.MustLoad("marutchi-walk-2.txt"),
 }
+
+// messArt is the small pile glyph shown while the Pet HasMess — a status
+// indicator, not a set piece, so it's kept tiny.
+var messArt = art.MustLoad("mess.txt")
 
 const (
 	// artBoxHeight leaves a row of bob headroom above and below the art, the
@@ -78,4 +83,48 @@ func infoLine(p pet.Pet, now time.Time) string {
 func ageLabel(age time.Duration) string {
 	days := int(age / (24 * time.Hour))
 	return fmt.Sprintf("Day %d", days)
+}
+
+// renderMessLine draws the Mess indicator glyph.
+func renderMessLine(style lipgloss.Style) string {
+	return style.Render(strings.Join(messArt, "\n"))
+}
+
+// renderIconBar draws the Care-action icon bar, highlighting selected and
+// wrapping each icon in its own bubblezone mark so a click can be tested
+// against exactly its cells — the same pattern welcome/prompt.go uses for
+// the begin prompt, with the same nil-manager guard for a click arriving
+// before the first scan.
+func renderIconBar(selected int, normal, selectedStyle lipgloss.Style) string {
+	parts := make([]string, numIcons)
+	for i := icon(0); i < numIcons; i++ {
+		style := normal
+		if int(i) == selected {
+			style = selectedStyle
+		}
+		rendered := style.Render(fmt.Sprintf("[ %s ]", iconLabel[i]))
+		if zone.DefaultManager != nil {
+			rendered = zone.Mark(iconZoneID[i], rendered)
+		}
+		parts[i] = rendered
+	}
+	return strings.Join(parts, "  ")
+}
+
+// renderFeedChoice draws Feed's inline Meal/Snack chooser, using the same
+// selection/zone-marking pattern as renderIconBar.
+func renderFeedChoice(selected int, normal, selectedStyle lipgloss.Style) string {
+	parts := make([]string, numFeedOptions)
+	for i := feedOption(0); i < numFeedOptions; i++ {
+		style := normal
+		if int(i) == selected {
+			style = selectedStyle
+		}
+		rendered := style.Render(fmt.Sprintf("[ %s ]", feedOptionLabel[i]))
+		if zone.DefaultManager != nil {
+			rendered = zone.Mark(feedZoneID[i], rendered)
+		}
+		parts[i] = rendered
+	}
+	return strings.Join(parts, "  ")
 }

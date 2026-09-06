@@ -39,9 +39,46 @@ func TestFileStoreRoundTripsSaveAndLoad(t *testing.T) {
 	require.True(t, ok)
 	assert.True(t, want.CreatedAt.Equal(got.CreatedAt))
 	assert.True(t, want.LastSeenAt.Equal(got.LastSeenAt))
+	assert.True(t, want.HappinessLastSeenAt.Equal(got.HappinessLastSeenAt))
+	assert.True(t, want.LastCleanedAt.Equal(got.LastCleanedAt))
 	assert.Equal(t, want.Hunger, got.Hunger)
 	assert.Equal(t, want.Happiness, got.Happiness)
 	assert.Equal(t, want.Weight, got.Weight)
+}
+
+// TestFileStoreLoadDefaultsCareActionFieldsForOldSaveFiles proves a save file
+// written before Care actions existed (so its JSON has neither
+// last_cleaned_at nor happiness_last_seen_at) loads sanely: LastCleanedAt
+// defaults to CreatedAt ("never cleaned since birth", not freshly cleaned at
+// the zero time.Time), and HappinessLastSeenAt defaults to LastSeenAt (exactly
+// correct, since every such save always advanced Hunger and Happiness decay
+// in lockstep).
+func TestFileStoreLoadDefaultsCareActionFieldsForOldSaveFiles(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "save.json")
+	createdAt := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	lastSeenAt := createdAt.Add(90 * time.Second)
+	body := `{
+		"schema_version": 1,
+		"created_at": "` + createdAt.Format(time.RFC3339Nano) + `",
+		"last_seen_at": "` + lastSeenAt.Format(time.RFC3339Nano) + `",
+		"hunger": 4,
+		"happiness": 4,
+		"weight": 2
+	}`
+	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
+
+	got, ok, err := pet.NewFileStore(path).Load()
+
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.True(t, createdAt.Equal(got.LastCleanedAt),
+		"a pre-Mess save should default LastCleanedAt to CreatedAt, not the zero time")
+	assert.True(t, got.HasMess(createdAt.Add(pet.MessInterval)),
+		"defaulting to CreatedAt should read as messy after MessInterval has passed since birth, not freshly cleaned")
+	assert.True(t, lastSeenAt.Equal(got.HappinessLastSeenAt),
+		"a pre-Care-actions save should default HappinessLastSeenAt to LastSeenAt")
 }
 
 func TestFileStoreSaveCreatesMissingParentDirectory(t *testing.T) {

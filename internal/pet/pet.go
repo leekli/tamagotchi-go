@@ -43,6 +43,16 @@ const (
 	HungerDecayInterval = 3 * time.Minute
 	// HappinessDecayInterval is the same, for Happiness.
 	HappinessDecayInterval = 3 * time.Minute
+
+	// MessInterval is how long the Pet can go without being Cleaned before it
+	// HasMess. Chosen to be visible within a single play session: long enough
+	// that a freshly-hatched Baby isn't immediately messy, short enough that a
+	// player who ignores it for a while sees the consequence.
+	MessInterval = 5 * time.Minute
+	// MessHappinessDecayInterval is the (shorter) HappinessDecayInterval
+	// applied while the Pet HasMess — Happiness Decays twice as fast, so
+	// neglecting a Mess has a real, visible cost.
+	MessHappinessDecayInterval = HappinessDecayInterval / 2
 )
 
 // Pet is the creature the player raises.
@@ -50,9 +60,21 @@ type Pet struct {
 	// CreatedAt is when the Pet was first born; it drives Age and the
 	// Egg→Baby Hatch.
 	CreatedAt time.Time
-	// LastSeenAt is the wall-clock time Decay was last applied up to; it
-	// drives the offline catch-up applied on load.
+	// LastSeenAt is the wall-clock time Hunger Decay was last applied up to;
+	// it drives the offline catch-up applied on load.
 	LastSeenAt time.Time
+	// HappinessLastSeenAt is the same, for Happiness specifically. Tracked
+	// separately from LastSeenAt because Happiness's Decay interval changes
+	// (faster) while the Pet HasMess: a single shared anchor can't correctly
+	// serve two stats that step at different rates — see docs/adr/0006's
+	// update note.
+	HappinessLastSeenAt time.Time
+	// LastCleanedAt is the wall-clock time the Pet was last Cleaned. It
+	// defaults to CreatedAt for a freshly-hatched Pet, and — via a save-file
+	// load default — for any pre-Mess save file too, both of which correctly
+	// read as "never cleaned yet". HasMess derives from this rather than
+	// storing a separate flag, so it can never drift out of sync with it.
+	LastCleanedAt time.Time
 	// Hunger ranges 0 (starving) .. MaxStat (full).
 	Hunger int
 	// Happiness ranges 0 (unhappy) .. MaxStat (happy).
@@ -66,11 +88,13 @@ type Pet struct {
 // BaseWeight, as of now.
 func New(now time.Time) Pet {
 	return Pet{
-		CreatedAt:  now,
-		LastSeenAt: now,
-		Hunger:     MaxStat,
-		Happiness:  MaxStat,
-		Weight:     BaseWeight,
+		CreatedAt:           now,
+		LastSeenAt:          now,
+		HappinessLastSeenAt: now,
+		LastCleanedAt:       now,
+		Hunger:              MaxStat,
+		Happiness:           MaxStat,
+		Weight:              BaseWeight,
 	}
 }
 
@@ -86,4 +110,32 @@ func (p Pet) Stage(now time.Time) Stage {
 // Age reports how long the Pet has been alive as of now.
 func (p Pet) Age(now time.Time) time.Duration {
 	return now.Sub(p.CreatedAt)
+}
+
+// HasMess reports whether the Pet currently has a Mess: uncleaned for at
+// least MessInterval since it was last Cleaned. Derived from LastCleanedAt
+// rather than stored as a separate mutated flag, the same reasoning Stage
+// already applies to CreatedAt — see docs/adr/0006's update note.
+func (p Pet) HasMess(now time.Time) bool {
+	return now.Sub(p.LastCleanedAt) >= MessInterval
+}
+
+// withLoadDefaults normalises a Pet freshly unmarshalled from a save file
+// that predates a field, into the value that reads correctly for "this never
+// happened yet". A zero LastCleanedAt (absent from any save file written
+// before Mess existed) means "never cleaned since birth", which is
+// CreatedAt, not the zero time.Time — kept here, in the domain package,
+// rather than in FileStore, so the invariant holds regardless of where a Pet
+// is loaded from.
+func withLoadDefaults(p Pet) Pet {
+	if p.LastCleanedAt.IsZero() {
+		p.LastCleanedAt = p.CreatedAt
+	}
+	if p.HappinessLastSeenAt.IsZero() {
+		// Every save file written before Mess existed always advanced Hunger
+		// and Happiness in lockstep, so LastSeenAt is exactly the point
+		// Happiness Decay was applied up to as well.
+		p.HappinessLastSeenAt = p.LastSeenAt
+	}
+	return p
 }

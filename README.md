@@ -28,6 +28,9 @@ TUI framework.
 - A living, persisted Pet on the Next Screen: it's born an Egg, hatches into a
   Baby, and its Hunger and Happiness decay over real elapsed time — whether or
   not the game is running. State survives a restart (`internal/pet`).
+- A full Care loop once the Pet is a Baby: Feed it a Meal or a Snack, Play
+  with it, or Clean up a Mess it's left uncleaned for too long — each
+  reachable by keyboard or mouse, with immediate feedback in the stat meters.
 - A screen-routed TUI that clears the terminal on entry and restores it on exit.
 - A hand-authored ASCII wordmark with a one-pass shine sweep, a wandering
   animated Character, and a pulsing begin prompt — all on a deterministic,
@@ -44,8 +47,12 @@ TUI framework.
 |-----|--------|
 | <kbd>Enter</kbd>, or a click on the begin prompt | Begin (advance from the Welcome Screen) |
 | <kbd>↑</kbd> <kbd>↓</kbd> <kbd>PgUp</kbd> <kbd>PgDn</kbd> <kbd>Home</kbd> <kbd>End</kbd> / wheel | Scroll (on scrollable Screens) |
+| <kbd>←</kbd> <kbd>→</kbd> / <kbd>h</kbd> <kbd>l</kbd>, or a click on an icon | Select a Care action or Feed's Meal/Snack choice (Next Screen, once the Pet is a Baby) |
+| <kbd>Enter</kbd> | Activate the selected icon or choice (Next Screen) |
+| <kbd>f</kbd> <kbd>p</kbd> <kbd>c</kbd> | Feed, Play, or Clean directly, from any selection (Next Screen) |
+| <kbd>m</kbd> <kbd>s</kbd> | Choose Meal or Snack directly, once Feed's chooser is open (Next Screen) |
+| <kbd>Esc</kbd> | Cancel Feed's Meal/Snack chooser (Next Screen); quit (Welcome Screen) |
 | <kbd>Ctrl</kbd>+<kbd>C</kbd> | Quit (any Screen) |
-| <kbd>Esc</kbd> | Quit (Welcome Screen only) |
 
 ## Requirements
 
@@ -133,8 +140,8 @@ cmd/tamagotchi-go/      entrypoint
 internal/cli/           command-line argument wiring
 internal/tui/           App router, Screen interface, shared styles and keys
 internal/tui/welcome/   Welcome Screen (wordmark, shine sweep, Character, prompt)
-internal/tui/next/      Next Screen (the Pet: art, meters, age, weight)
-internal/pet/           Pet domain model: Stage, Decay, and persistence
+internal/tui/next/      Next Screen (the Pet: art, meters, age, weight, Care actions)
+internal/pet/           Pet domain model: Stage, Decay, Care actions, and persistence
 internal/anim/          fixed-rate frame clock and easing helpers
 internal/art/           embedded ASCII art loader and mirror helper
 docs/adr/               architecture decision records

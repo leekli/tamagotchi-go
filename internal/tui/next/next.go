@@ -8,6 +8,7 @@ package next
 import (
 	"time"
 
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -15,6 +16,11 @@ import (
 	"github.com/leekli/tamagotchi-go/internal/pet"
 	"github.com/leekli/tamagotchi-go/internal/tui"
 )
+
+// flourishDuration is how long a Care action's text flourish (e.g. "*tidied
+// up*") stays on screen before clearing itself, timed on the same animation
+// clock the Welcome Screen's begin-prompt pulse uses.
+const flourishDuration = 2 * time.Second
 
 // Screen is the Next Screen.
 type Screen struct {
@@ -31,6 +37,23 @@ type Screen struct {
 	width, height int
 	frame         int
 
+	// selected is the currently highlighted icon in the icon bar (see
+	// iconbar.go). It cycles across numIcons, wrapping at both ends.
+	selected int
+	// menu is which selection is currently showing: the top-level icon bar,
+	// or Feed's Meal/Snack chooser.
+	menu menu
+	// feedSelected is the chooser's own selection index, kept separate from
+	// selected so a bug in one selection can't corrupt the other.
+	feedSelected int
+	keys         keyMap
+
+	// flourish is the current Care-action feedback text (e.g. "*tidied
+	// up*"), or "" when none is showing. flourishUntil is the frame at which
+	// it clears itself.
+	flourish      string
+	flourishUntil int
+
 	styles styles
 }
 
@@ -40,8 +63,16 @@ func New(initial pet.Pet, store pet.Store) tui.Screen {
 		pet:    initial,
 		store:  store,
 		now:    initial.LastSeenAt,
+		keys:   defaultKeyMap(),
 		styles: newStyles(tui.DefaultPalette()),
 	}
+}
+
+// setFlourish shows text as the current Care-action feedback until
+// flourishDuration's worth of animation frames have passed.
+func (s *Screen) setFlourish(text string) {
+	s.flourish = text
+	s.flourishUntil = s.frame + int(flourishDuration/anim.FrameInterval)
 }
 
 // ID implements tui.Screen.
@@ -75,13 +106,28 @@ func (s *Screen) Update(msg tea.Msg) (tui.Screen, tea.Cmd) {
 			// same discipline pet.Advance already applies to Decay.
 			s.now = msg.Time
 		}
+		if s.flourish != "" && s.frame >= s.flourishUntil {
+			s.flourish = ""
+		}
 		return s, anim.Tick()
 
 	case pet.BeatMsg:
 		s.pet = s.pet.Advance(msg.Time)
 		return s, tea.Batch(pet.Beat(), pet.SaveCmd(s.store, s.pet))
+
+	case tea.KeyMsg:
+		return s.updateIconBarKey(msg)
+
+	case tea.MouseMsg:
+		return s.updateIconBarMouse(msg)
 	}
 	return s, nil
+}
+
+// ShortHelp implements tui.HelpProvider: the icon bar's key hints once the
+// Pet has hatched, or none before then.
+func (s *Screen) ShortHelp() []key.Binding {
+	return s.shortHelp()
 }
 
 // OnQuit implements tui.QuitHandler: it saves the current Pet before the App
@@ -92,20 +138,44 @@ func (s *Screen) OnQuit() tea.Cmd {
 
 // View implements tui.Screen.
 func (s *Screen) View() string {
+	isBaby := s.pet.Stage(s.now) == pet.StageBaby
+
 	frameArt, bob := eggArt, 0
-	if s.pet.Stage(s.now) == pet.StageBaby {
+	if isBaby {
 		frameArt, bob = babyPose(s.frame), babyBob(s.frame)
 	}
 
-	stack := lipgloss.JoinVertical(
-		lipgloss.Center,
+	// The Mess line and the flourish line each always occupy a row, blank
+	// when absent, the same fixed-height discipline renderArtBox uses for
+	// the art (via artBoxHeight) — so a Mess appearing/clearing or a
+	// flourish showing/clearing never shifts the rest of the centred stack.
+	messLine := ""
+	if s.pet.HasMess(s.now) {
+		messLine = renderMessLine(s.styles.mess)
+	}
+
+	rows := []string{
 		renderArtBox(frameArt, bob, s.styles.art),
+		messLine,
 		"",
 		renderMeter("Hunger", s.pet.Hunger, s.styles.meter),
 		renderMeter("Happiness", s.pet.Happiness, s.styles.meter),
 		"",
 		s.styles.info.Render(infoLine(s.pet, s.now)),
-	)
+	}
+	if isBaby {
+		menuRow := renderIconBar(s.selected, s.styles.icon, s.styles.iconSelected)
+		if s.menu == menuFeedChoice {
+			menuRow = renderFeedChoice(s.feedSelected, s.styles.icon, s.styles.iconSelected)
+		}
+		flourishLine := ""
+		if s.flourish != "" {
+			flourishLine = s.styles.flourish.Render(s.flourish)
+		}
+		rows = append(rows, "", menuRow, flourishLine)
+	}
+
+	stack := lipgloss.JoinVertical(lipgloss.Center, rows...)
 	return lipgloss.Place(s.width, s.height, lipgloss.Center, lipgloss.Center, stack)
 }
 

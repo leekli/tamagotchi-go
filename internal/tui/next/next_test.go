@@ -3,11 +3,13 @@ package next_test
 import (
 	"os"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	zone "github.com/lrstanley/bubblezone"
 	"github.com/muesli/termenv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,12 +20,22 @@ import (
 	"github.com/leekli/tamagotchi-go/internal/tui/next"
 )
 
-// TestMain forces a deterministic colour profile so the Screen's styling
-// produces visible escape codes regardless of whether the test host is a
-// terminal, matching the Welcome Screen's test setup.
+// TestMain gives the package a live bubblezone manager (so the icon bar's
+// click zones resolve) and forces a deterministic colour profile so the
+// Screen's styling produces visible escape codes regardless of whether the
+// test host is a terminal, matching the Welcome Screen's test setup.
 func TestMain(m *testing.M) {
+	zone.NewGlobal()
 	lipgloss.SetColorProfile(termenv.ANSI256)
 	os.Exit(m.Run())
+}
+
+// babyScreen builds a sized Screen already hatched into a Baby as of born,
+// so icon-bar tests don't each need to advance past EggDuration themselves.
+func babyScreen(t *testing.T, initial pet.Pet, store pet.Store) tui.Screen {
+	t.Helper()
+	s := sizedScreen(t, initial, store)
+	return advanceAnim(t, s, born.Add(pet.EggDuration), 1)
 }
 
 // fakeStore is an in-memory pet.Store for tests, recording every Save.
@@ -220,3 +232,373 @@ var ansiSeq = regexp.MustCompile("\x1b\\[[0-9;]*m")
 // stripANSI removes SGR colour sequences so plain-text art and labels can be
 // matched, the same helper the Welcome Screen's tests use.
 func stripANSI(s string) string { return ansiSeq.ReplaceAllString(s, "") }
+
+func TestIconBarHiddenUntilBabyStage(t *testing.T) {
+	t.Parallel()
+
+	s := sizedScreen(t, pet.New(born), &fakeStore{})
+	view := stripANSI(s.View())
+
+	assert.NotContains(t, view, "Play")
+	assert.NotContains(t, view, "Clean")
+
+	hp, ok := s.(tui.HelpProvider)
+	require.True(t, ok)
+	assert.Empty(t, hp.ShortHelp(), "no care-action hints while the Pet is an Egg")
+}
+
+func TestIconBarAppearsAfterHatch(t *testing.T) {
+	t.Parallel()
+
+	view := stripANSI(babyScreen(t, pet.New(born), &fakeStore{}).View())
+
+	assert.Contains(t, view, "Feed")
+	assert.Contains(t, view, "Play")
+	assert.Contains(t, view, "Clean")
+}
+
+func TestIconSelectionCyclesAndWraps(t *testing.T) {
+	t.Parallel()
+
+	s := babyScreen(t, pet.New(born), &fakeStore{})
+
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRight})
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRight})
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRight}) // wraps back to the first icon
+	ns, ok := s.(*next.Screen)
+	require.True(t, ok)
+	assert.Equal(t, 0, ns.Selected())
+
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyLeft}) // wraps to the last icon
+	ns, ok = s.(*next.Screen)
+	require.True(t, ok)
+	assert.Equal(t, 2, ns.Selected())
+}
+
+func TestEnterActivatesTheSelectedIcon(t *testing.T) {
+	t.Parallel()
+
+	p := pet.New(born)
+	p.LastCleanedAt = born.Add(-pet.MessInterval) // already messy
+	s := babyScreen(t, p, &fakeStore{})
+
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRight}) // Feed -> Play
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRight}) // Play -> Clean
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
+	ns, ok := s.(*next.Screen)
+	require.True(t, ok)
+	assert.False(t, ns.Pet().HasMess(born.Add(pet.EggDuration)), "Enter on Clean should clear the Mess")
+}
+
+func TestHotkeysActivateDirectlyFromAnySelection(t *testing.T) {
+	t.Parallel()
+
+	s := babyScreen(t, pet.New(born), &fakeStore{})
+
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
+
+	ns, ok := s.(*next.Screen)
+	require.True(t, ok)
+	assert.Equal(t, pet.MaxStat, ns.Pet().Happiness, "already full, but Play should still have run")
+	assert.Contains(t, stripANSI(s.View()), "plays happily")
+}
+
+func TestPlayIncreasesHappiness(t *testing.T) {
+	t.Parallel()
+
+	p := pet.New(born)
+	p.Happiness = 1
+	s := babyScreen(t, p, &fakeStore{})
+
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
+
+	ns, ok := s.(*next.Screen)
+	require.True(t, ok)
+	assert.Equal(t, 2, ns.Pet().Happiness)
+}
+
+func TestFlourishClearsAfterItsDuration(t *testing.T) {
+	t.Parallel()
+
+	s := babyScreen(t, pet.New(born), &fakeStore{})
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	require.Contains(t, stripANSI(s.View()), "tidied up")
+
+	s = advanceAnim(t, s, born.Add(pet.EggDuration+time.Second), anim.FPS*3)
+
+	assert.NotContains(t, stripANSI(s.View()), "tidied up")
+}
+
+func TestMessIndicatorRendersOnlyWhenMessy(t *testing.T) {
+	t.Parallel()
+
+	clean := babyScreen(t, pet.New(born), &fakeStore{})
+	assert.NotContains(t, stripANSI(clean.View()), "(___)")
+
+	p := pet.New(born)
+	p.LastCleanedAt = born.Add(-pet.MessInterval)
+	messy := babyScreen(t, p, &fakeStore{})
+	assert.Contains(t, stripANSI(messy.View()), "(___)")
+}
+
+func TestShortHelpAdvertisesIconBarHintsOnlyOnceHatched(t *testing.T) {
+	t.Parallel()
+
+	egg, ok := sizedScreen(t, pet.New(born), &fakeStore{}).(tui.HelpProvider)
+	require.True(t, ok)
+	assert.Empty(t, egg.ShortHelp())
+
+	baby, ok := babyScreen(t, pet.New(born), &fakeStore{}).(tui.HelpProvider)
+	require.True(t, ok)
+	assert.NotEmpty(t, baby.ShortHelp())
+}
+
+// TestShortHelpHasNoBlankBindings guards against a binding with no help text
+// (e.g. a Right-arrow key that only exists as a Left binding's second key)
+// slipping into a ShortHelp() list, where bubbles/help would render it as a
+// stray empty bullet regardless of whether it has visible help text.
+func TestShortHelpHasNoBlankBindings(t *testing.T) {
+	t.Parallel()
+
+	assertNoBlankBindings := func(t *testing.T, s tui.Screen) {
+		t.Helper()
+		hp, ok := s.(tui.HelpProvider)
+		require.True(t, ok)
+		for _, b := range hp.ShortHelp() {
+			assert.NotEmpty(t, b.Help().Key, "binding with empty help text in ShortHelp()")
+		}
+	}
+
+	icons := babyScreen(t, pet.New(born), &fakeStore{})
+	assertNoBlankBindings(t, icons)
+
+	feedChoice, _ := icons.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
+	assertNoBlankBindings(t, feedChoice)
+}
+
+// iconZone scans the screen until the named zone resolves (bubblezone
+// records positions on a worker goroutine) and returns its bounds, the same
+// pattern welcome_test.go's beginZone helper uses.
+func iconZone(t *testing.T, s tui.Screen, id string) *zone.ZoneInfo {
+	t.Helper()
+	var z *zone.ZoneInfo
+	require.Eventually(t, func() bool {
+		zone.Scan(s.View())
+		z = zone.Get(id)
+		return !z.IsZero()
+	}, 2*time.Second, 10*time.Millisecond, "zone %q should resolve after a render", id)
+	return z
+}
+
+// clickZone clicks the centre of the named zone and returns the updated
+// Screen.
+func clickZone(t *testing.T, s tui.Screen, id string) tui.Screen {
+	t.Helper()
+	z := iconZone(t, s, id)
+	s, _ = s.Update(tea.MouseMsg{
+		Action: tea.MouseActionPress,
+		Button: tea.MouseButtonLeft,
+		X:      (z.StartX + z.EndX) / 2,
+		Y:      z.StartY,
+	})
+	return s
+}
+
+func TestMouseClickActivatesTheMatchingIcon(t *testing.T) {
+	t.Run("clicking Play activates it like the p hotkey would", func(t *testing.T) {
+		p := pet.New(born)
+		p.Happiness = 1
+		s := babyScreen(t, p, &fakeStore{})
+
+		s = clickZone(t, s, next.PlayZoneID)
+
+		ns, ok := s.(*next.Screen)
+		require.True(t, ok)
+		assert.Equal(t, 2, ns.Pet().Happiness)
+	})
+
+	t.Run("clicking Clean activates it regardless of the current selection", func(t *testing.T) {
+		p := pet.New(born)
+		p.LastCleanedAt = born.Add(-pet.MessInterval)
+		s := babyScreen(t, p, &fakeStore{})
+
+		s = clickZone(t, s, next.CleanZoneID)
+
+		ns, ok := s.(*next.Screen)
+		require.True(t, ok)
+		assert.False(t, ns.Pet().HasMess(born.Add(pet.EggDuration)))
+	})
+
+	t.Run("a click outside every zone does nothing", func(t *testing.T) {
+		s := babyScreen(t, pet.New(born), &fakeStore{})
+		iconZone(t, s, next.PlayZoneID) // ensure zones are known, so this is a real miss
+
+		s, cmd := s.Update(tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonLeft, X: 0, Y: 0})
+		assert.Nil(t, cmd)
+		ns, ok := s.(*next.Screen)
+		require.True(t, ok)
+		assert.Equal(t, pet.New(born).Happiness, ns.Pet().Happiness)
+	})
+}
+
+func TestActivatingFeedOpensTheChooserWithoutChangingStats(t *testing.T) {
+	t.Parallel()
+
+	p := pet.New(born)
+	p.Hunger, p.Happiness = 1, 1
+	s := babyScreen(t, p, &fakeStore{})
+
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
+
+	ns, ok := s.(*next.Screen)
+	require.True(t, ok)
+	assert.Equal(t, 1, ns.Pet().Hunger)
+	assert.Equal(t, 1, ns.Pet().Happiness)
+	view := stripANSI(s.View())
+	assert.Contains(t, view, "Meal")
+	assert.Contains(t, view, "Snack")
+}
+
+func TestFeedChoiceMealAndSnack(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Meal increases Hunger only, via hotkey", func(t *testing.T) {
+		p := pet.New(born)
+		p.Hunger, p.Happiness = 1, 1
+		s := babyScreen(t, p, &fakeStore{})
+
+		s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
+		s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}})
+
+		ns, ok := s.(*next.Screen)
+		require.True(t, ok)
+		assert.Equal(t, 2, ns.Pet().Hunger)
+		assert.Equal(t, 1, ns.Pet().Happiness)
+		assert.Equal(t, pet.BaseWeight, ns.Pet().Weight)
+		assert.Contains(t, stripANSI(s.View()), "munch munch")
+	})
+
+	t.Run("Snack increases Happiness and Weight, via Left/Right and Enter", func(t *testing.T) {
+		p := pet.New(born)
+		p.Hunger, p.Happiness = 1, 1
+		s := babyScreen(t, p, &fakeStore{})
+
+		s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
+		s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRight}) // Meal -> Snack
+		s, _ = s.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
+		ns, ok := s.(*next.Screen)
+		require.True(t, ok)
+		assert.Equal(t, 1, ns.Pet().Hunger)
+		assert.Equal(t, 2, ns.Pet().Happiness)
+		assert.Equal(t, pet.BaseWeight+1, ns.Pet().Weight)
+		assert.Contains(t, stripANSI(s.View()), "nom nom")
+	})
+}
+
+func TestEscCancelsTheFeedChooserWithoutAStatChange(t *testing.T) {
+	t.Parallel()
+
+	p := pet.New(born)
+	p.Hunger, p.Happiness = 1, 1
+	s := babyScreen(t, p, &fakeStore{})
+
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyEsc})
+
+	ns, ok := s.(*next.Screen)
+	require.True(t, ok)
+	assert.Equal(t, 1, ns.Pet().Hunger)
+	assert.Equal(t, 1, ns.Pet().Happiness)
+	view := stripANSI(s.View())
+	assert.NotContains(t, view, "Meal")
+	assert.Contains(t, view, "Play", "should be back at the main icon bar")
+}
+
+func TestFeedChooserInputsAreIndependentOfTheOuterIconBar(t *testing.T) {
+	t.Parallel()
+
+	p := pet.New(born)
+	p.Happiness = 1
+	s := babyScreen(t, p, &fakeStore{})
+
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
+
+	// While the chooser is open, the outer bar's Play/Clean hotkeys do
+	// nothing, and re-pressing 'f' does nothing either.
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
+
+	ns, ok := s.(*next.Screen)
+	require.True(t, ok)
+	assert.Equal(t, 1, ns.Pet().Happiness, "p/c/f must be no-ops while the Feed chooser is open")
+	assert.Contains(t, stripANSI(s.View()), "Meal", "the chooser should still be open")
+}
+
+func TestShortHelpSwitchesToFeedChoiceHintsWhileOpen(t *testing.T) {
+	t.Parallel()
+
+	s := babyScreen(t, pet.New(born), &fakeStore{})
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
+
+	hp, ok := s.(tui.HelpProvider)
+	require.True(t, ok)
+	bindings := hp.ShortHelp()
+
+	found := map[string]bool{}
+	for _, b := range bindings {
+		found[b.Help().Key] = true
+	}
+	assert.True(t, found["m"], "expected the Meal hint while the chooser is open")
+	assert.True(t, found["s"], "expected the Snack hint while the chooser is open")
+}
+
+func TestMouseClickActivatesFeedChoice(t *testing.T) {
+	t.Run("clicking Snack applies it", func(t *testing.T) {
+		p := pet.New(born)
+		p.Happiness = 1
+		s := babyScreen(t, p, &fakeStore{})
+		s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
+
+		s = clickZone(t, s, next.SnackZoneID)
+
+		ns, ok := s.(*next.Screen)
+		require.True(t, ok)
+		assert.Equal(t, 2, ns.Pet().Happiness)
+		assert.Equal(t, pet.BaseWeight+1, ns.Pet().Weight)
+	})
+
+	t.Run("clicking Feed opens the chooser", func(t *testing.T) {
+		s := babyScreen(t, pet.New(born), &fakeStore{})
+
+		s = clickZone(t, s, next.FeedZoneID)
+
+		assert.Contains(t, stripANSI(s.View()), "Meal")
+	})
+}
+
+// TestViewHeightIsStableAcrossMessAndFlourishStateChanges guards against a
+// regression where the Mess indicator and the Care-action flourish were only
+// appended to the view when present, so the rest of the centred stack (art,
+// meters, icon bar) visibly shifted by a row whenever either appeared or
+// cleared — unlike the art, which reserves a fixed height for exactly this
+// reason.
+func TestViewHeightIsStableAcrossMessAndFlourishStateChanges(t *testing.T) {
+	t.Parallel()
+
+	lineCount := func(view string) int { return strings.Count(view, "\n") + 1 }
+
+	clean := babyScreen(t, pet.New(born), &fakeStore{})
+	baseline := lineCount(clean.View())
+
+	p := pet.New(born)
+	p.LastCleanedAt = born.Add(-pet.MessInterval)
+	messy := babyScreen(t, p, &fakeStore{})
+	assert.Equal(t, baseline, lineCount(messy.View()), "a visible Mess indicator should not change the view's height")
+
+	flourishing, _ := clean.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
+	require.Contains(t, stripANSI(flourishing.View()), "plays happily")
+	assert.Equal(t, baseline, lineCount(flourishing.View()), "a visible flourish should not change the view's height")
+}
