@@ -13,6 +13,8 @@ import (
 	"github.com/creack/pty"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/leekli/tamagotchi-go/internal/pet"
 )
 
 // syncBuffer is an io.Writer safe for concurrent writes and snapshot reads.
@@ -35,7 +37,12 @@ func (s *syncBuffer) String() string {
 
 func waitForOutput(t *testing.T, out *syncBuffer, want string) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	waitForOutputTimeout(t, out, want, 5*time.Second)
+}
+
+func waitForOutputTimeout(t *testing.T, out *syncBuffer, want string, timeout time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		if bytes.Contains([]byte(out.String()), []byte(want)) {
 			return
@@ -53,6 +60,7 @@ type smokeSaveFile struct {
 	SchemaVersion int    `json:"schema_version"`
 	CreatedAt     string `json:"created_at"`
 	LastSeenAt    string `json:"last_seen_at"`
+	LastCleanedAt string `json:"last_cleaned_at"`
 	Hunger        int    `json:"hunger"`
 	Happiness     int    `json:"happiness"`
 	Weight        int    `json:"weight"`
@@ -110,6 +118,20 @@ func TestBinaryLaunchesAndQuits(t *testing.T) {
 	require.NoError(t, err)
 	waitForOutput(t, out, "Hunger")
 
+	// The icon bar only appears once the Pet has hatched into a Baby; unlike
+	// the in-process integration tests, a separate OS process can't be
+	// fast-forwarded by injecting a synthetic tick, so this really does wait
+	// out EggDuration in real time.
+	waitForOutputTimeout(t, out, "Play", pet.EggDuration+10*time.Second)
+
+	_, err = ptmx.Write([]byte("p"))
+	require.NoError(t, err)
+	waitForOutput(t, out, "plays happily")
+
+	_, err = ptmx.Write([]byte("c"))
+	require.NoError(t, err)
+	waitForOutput(t, out, "tidied up")
+
 	_, err = ptmx.Write([]byte{0x03}) // Ctrl+C
 	require.NoError(t, err)
 
@@ -135,4 +157,6 @@ func TestBinaryLaunchesAndQuits(t *testing.T) {
 	assert.Equal(t, 4, sf.Hunger)
 	assert.Equal(t, 4, sf.Happiness)
 	assert.Equal(t, 2, sf.Weight)
+	assert.NotEqual(t, sf.CreatedAt, sf.LastCleanedAt,
+		"Clean should have persisted a last_cleaned_at well after birth")
 }

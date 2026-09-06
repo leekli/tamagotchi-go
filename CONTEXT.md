@@ -123,3 +123,13 @@ Clean Care action removes it. Deliberately not called "poop" — keep the term
 politely abstract in code, comments, and UI copy; the small pile glyph shown
 on screen can still read as one.
 _Avoid_: poop
+
+**Care action**:
+A player-triggered command on the Next Screen that changes the Pet's Stats:
+Feed, Play, or Clean.
+_Avoid_: command, verb
+
+**Icon bar**:
+The row of selectable Care-action icons the Next Screen shows once the Pet
+has hatched into a Baby, navigated by keyboard or mouse.
+_Avoid_: menu bar, toolbar
