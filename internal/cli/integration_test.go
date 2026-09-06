@@ -309,3 +309,88 @@ func TestFeedSnackKeyboardAndMouseReachTheSameState(t *testing.T) {
 	assert.Equal(t, pet.BaseWeight+1, byKeyboard.Weight)
 	assert.Equal(t, pet.BaseWeight+1, byMouse.Weight)
 }
+
+// runFullCareLoop drives the Welcome Screen to the Next Screen, fast-forwards
+// past EggDuration, then exercises all three Care actions in one continuous
+// run — Feed (Snack), then Play, then Clean — either entirely by hotkey or
+// entirely by clicking icon-bar and chooser zones, and returns the resulting
+// Pet. This is the "keyboard and mouse throughout" claim made good across
+// the complete loop, not just per action.
+func runFullCareLoop(t *testing.T, useMouse bool) pet.Pet {
+	t.Helper()
+
+	app := newTestApp(t)
+	tm := teatest.NewTestModel(t, app, teatest.WithInitialTermSize(100, 30))
+
+	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
+		return bytes.Contains(b, []byte("Press Enter or click to begin"))
+	}, teatest.WithDuration(3*time.Second))
+	tm.Send(tea.KeyMsg{Type: tea.KeyEnter})
+
+	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
+		return bytes.Contains(b, []byte("Hunger"))
+	}, teatest.WithDuration(3*time.Second))
+
+	tm.Send(anim.TickMsg{Time: time.Now().Add(pet.EggDuration + time.Second)})
+	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
+		return bytes.Contains(b, []byte("Feed"))
+	}, teatest.WithDuration(3*time.Second))
+
+	press := func(hotkey rune, zoneID string) {
+		if useMouse {
+			z := waitForZone(t, zoneID)
+			tm.Send(tea.MouseMsg{
+				Action: tea.MouseActionPress, Button: tea.MouseButtonLeft,
+				X: (z.StartX + z.EndX) / 2, Y: z.StartY,
+			})
+			return
+		}
+		tm.Send(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{hotkey}})
+	}
+
+	press('f', next.FeedZoneID)
+	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
+		return bytes.Contains(b, []byte("Snack"))
+	}, teatest.WithDuration(3*time.Second))
+
+	press('s', next.SnackZoneID)
+	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
+		return bytes.Contains(b, []byte("nom nom"))
+	}, teatest.WithDuration(3*time.Second))
+
+	press('p', next.PlayZoneID)
+	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
+		return bytes.Contains(b, []byte("plays happily"))
+	}, teatest.WithDuration(3*time.Second))
+
+	press('c', next.CleanZoneID)
+	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
+		return bytes.Contains(b, []byte("tidied up"))
+	}, teatest.WithDuration(3*time.Second))
+
+	tm.Send(tea.KeyMsg{Type: tea.KeyCtrlC})
+	tm.WaitFinished(t, teatest.WithFinalTimeout(3*time.Second))
+
+	final, ok := tm.FinalModel(t).(*tui.App)
+	require.True(t, ok)
+	screen, ok := final.Current().(*next.Screen)
+	require.True(t, ok)
+	return screen.Pet()
+}
+
+// TestFullCareLoopKeyboardAndMouseReachTheSameState proves a mouse-only run
+// and a keyboard-only run of the complete Feed -> Play -> Clean loop reach
+// identical end states.
+func TestFullCareLoopKeyboardAndMouseReachTheSameState(t *testing.T) {
+	t.Parallel()
+
+	byKeyboard := runFullCareLoop(t, false)
+	byMouse := runFullCareLoop(t, true)
+
+	assert.Equal(t, pet.MaxStat, byKeyboard.Happiness)
+	assert.Equal(t, pet.MaxStat, byMouse.Happiness)
+	assert.Equal(t, pet.BaseWeight+1, byKeyboard.Weight)
+	assert.Equal(t, pet.BaseWeight+1, byMouse.Weight)
+	assert.False(t, byKeyboard.HasMess(time.Now()))
+	assert.False(t, byMouse.HasMess(time.Now()))
+}

@@ -38,3 +38,21 @@ Finally, the Next Screen's periodic simulation step is named `pet.Beat`, not
 ~15/sec animation clock, and reusing it for a second clock fifty times slower
 would blur two genuinely different things every time either is mentioned in
 code or conversation.
+
+## Update: Mess follows the same derive-don't-store pattern as Stage
+
+The Core Care Actions feature (Feed, Play, Clean) added a Mess concept: the
+Pet is left in an uncleaned state once enough time has passed since it was
+last cleaned, and Happiness decays faster while that's true. The working plan
+for that feature proposed a stored, mutated `Mess bool` field, updated inside
+`Advance`.
+
+Implementation instead derived it — `HasMess(now time.Time) bool`, computed
+from a `LastCleanedAt` timestamp — with no `Mess` field on `Pet` at all. This
+is the same reasoning already recorded above for `Stage`: a derived value
+can't drift out of sync with the timestamp it's based on, whereas a stored
+flag mutated on each `Advance` call could, in principle, disagree with what
+the timestamp implies. It also simplified the pre-feature save file question:
+with no field to add, there was nothing to default on old saves beyond
+`LastCleanedAt` itself (defaulted to `CreatedAt`, meaning "never cleaned
+since birth").
