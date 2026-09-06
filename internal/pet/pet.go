@@ -60,9 +60,15 @@ type Pet struct {
 	// CreatedAt is when the Pet was first born; it drives Age and the
 	// Egg→Baby Hatch.
 	CreatedAt time.Time
-	// LastSeenAt is the wall-clock time Decay was last applied up to; it
-	// drives the offline catch-up applied on load.
+	// LastSeenAt is the wall-clock time Hunger Decay was last applied up to;
+	// it drives the offline catch-up applied on load.
 	LastSeenAt time.Time
+	// HappinessLastSeenAt is the same, for Happiness specifically. Tracked
+	// separately from LastSeenAt because Happiness's Decay interval changes
+	// (faster) while the Pet HasMess: a single shared anchor can't correctly
+	// serve two stats that step at different rates — see docs/adr/0006's
+	// update note.
+	HappinessLastSeenAt time.Time
 	// LastCleanedAt is the wall-clock time the Pet was last Cleaned. It
 	// defaults to CreatedAt for a freshly-hatched Pet, and — via a save-file
 	// load default — for any pre-Mess save file too, both of which correctly
@@ -82,12 +88,13 @@ type Pet struct {
 // BaseWeight, as of now.
 func New(now time.Time) Pet {
 	return Pet{
-		CreatedAt:     now,
-		LastSeenAt:    now,
-		LastCleanedAt: now,
-		Hunger:        MaxStat,
-		Happiness:     MaxStat,
-		Weight:        BaseWeight,
+		CreatedAt:           now,
+		LastSeenAt:          now,
+		HappinessLastSeenAt: now,
+		LastCleanedAt:       now,
+		Hunger:              MaxStat,
+		Happiness:           MaxStat,
+		Weight:              BaseWeight,
 	}
 }
 
@@ -123,6 +130,12 @@ func (p Pet) HasMess(now time.Time) bool {
 func withLoadDefaults(p Pet) Pet {
 	if p.LastCleanedAt.IsZero() {
 		p.LastCleanedAt = p.CreatedAt
+	}
+	if p.HappinessLastSeenAt.IsZero() {
+		// Every save file written before Mess existed always advanced Hunger
+		// and Happiness in lockstep, so LastSeenAt is exactly the point
+		// Happiness Decay was applied up to as well.
+		p.HappinessLastSeenAt = p.LastSeenAt
 	}
 	return p
 }

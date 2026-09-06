@@ -50,14 +50,15 @@ type saveFile struct {
 	SchemaVersion int       `json:"schema_version"`
 	CreatedAt     time.Time `json:"created_at"`
 	LastSeenAt    time.Time `json:"last_seen_at"`
-	// LastCleanedAt is absent from any save file written before Mess
-	// existed; its zero time.Time unmarshals fine and is corrected to
-	// CreatedAt by withLoadDefaults below, so no schema_version bump is
-	// needed for this field.
-	LastCleanedAt time.Time `json:"last_cleaned_at,omitzero"`
-	Hunger        int       `json:"hunger"`
-	Happiness     int       `json:"happiness"`
-	Weight        int       `json:"weight"`
+	// HappinessLastSeenAt and LastCleanedAt are absent from any save file
+	// written before Care actions existed; their zero time.Time unmarshals
+	// fine and is corrected by withLoadDefaults below, so no schema_version
+	// bump is needed for either field.
+	HappinessLastSeenAt time.Time `json:"happiness_last_seen_at,omitzero"`
+	LastCleanedAt       time.Time `json:"last_cleaned_at,omitzero"`
+	Hunger              int       `json:"hunger"`
+	Happiness           int       `json:"happiness"`
+	Weight              int       `json:"weight"`
 }
 
 // Load implements Store. A missing file is the normal first-run case, not an
@@ -82,12 +83,13 @@ func (f FileStore) Load() (Pet, bool, error) {
 	}
 
 	return withLoadDefaults(Pet{
-		CreatedAt:     sf.CreatedAt,
-		LastSeenAt:    sf.LastSeenAt,
-		LastCleanedAt: sf.LastCleanedAt,
-		Hunger:        sf.Hunger,
-		Happiness:     sf.Happiness,
-		Weight:        sf.Weight,
+		CreatedAt:           sf.CreatedAt,
+		LastSeenAt:          sf.LastSeenAt,
+		HappinessLastSeenAt: sf.HappinessLastSeenAt,
+		LastCleanedAt:       sf.LastCleanedAt,
+		Hunger:              sf.Hunger,
+		Happiness:           sf.Happiness,
+		Weight:              sf.Weight,
 	}), true, nil
 }
 
@@ -102,13 +104,14 @@ func (f FileStore) Save(p Pet) error {
 	}
 
 	b, err := json.Marshal(saveFile{
-		SchemaVersion: schemaVersion,
-		CreatedAt:     p.CreatedAt,
-		LastSeenAt:    p.LastSeenAt,
-		LastCleanedAt: p.LastCleanedAt,
-		Hunger:        p.Hunger,
-		Happiness:     p.Happiness,
-		Weight:        p.Weight,
+		SchemaVersion:       schemaVersion,
+		CreatedAt:           p.CreatedAt,
+		LastSeenAt:          p.LastSeenAt,
+		HappinessLastSeenAt: p.HappinessLastSeenAt,
+		LastCleanedAt:       p.LastCleanedAt,
+		Hunger:              p.Hunger,
+		Happiness:           p.Happiness,
+		Weight:              p.Weight,
 	})
 	if err != nil {
 		return fmt.Errorf("pet: encoding save file: %w", err)

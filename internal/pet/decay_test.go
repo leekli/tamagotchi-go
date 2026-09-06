@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/leekli/tamagotchi-go/internal/pet"
 )
@@ -79,6 +80,33 @@ func TestAdvanceAccumulatesAcrossRepeatedShortCalls(t *testing.T) {
 
 	wantSteps := int(10 * time.Minute / pet.HungerDecayInterval)
 	assert.Equal(t, pet.MaxStat-wantSteps, p.Hunger)
+	assert.Equal(t, pet.MaxStat-wantSteps, p.Happiness)
+}
+
+// TestAdvanceAccumulatesCorrectlyAcrossRepeatedShortCallsWhileMessy is a
+// regression guard on Hunger and Happiness decaying against separate
+// anchors: with a shared anchor advanced by the smaller of the two stats'
+// consumed durations, Happiness's own already-applied step would be
+// recomputed from the stale anchor and re-subtracted on every subsequent
+// Beat until Hunger (the slower stat once messy) finally caught up to its
+// own first step — collapsing Happiness to 0 far faster than
+// MessHappinessDecayInterval intends.
+func TestAdvanceAccumulatesCorrectlyAcrossRepeatedShortCallsWhileMessy(t *testing.T) {
+	t.Parallel()
+
+	born := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	p := pet.New(born)
+	p.LastCleanedAt = born.Add(-pet.MessInterval) // messy from the start
+
+	const step = pet.BeatInterval
+	now := born
+	for range 9 { // 9 * 20s = 3 minutes of continuous play
+		now = now.Add(step)
+		p = p.Advance(now)
+	}
+
+	wantSteps := int(3 * time.Minute / pet.MessHappinessDecayInterval)
+	require.Equal(t, 2, wantSteps, "sanity check on the expected step count")
 	assert.Equal(t, pet.MaxStat-wantSteps, p.Happiness)
 }
 

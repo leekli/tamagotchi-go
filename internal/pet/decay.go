@@ -20,36 +20,36 @@ import "time"
 // through is not split into two rates: that would double the complexity of
 // the partial-step accounting below for a boundary nobody is watching in
 // real time.
+//
+// Hunger and Happiness are decayed against their own anchors (LastSeenAt and
+// HappinessLastSeenAt respectively) rather than one shared one: their
+// intervals can now differ (Happiness speeds up while HasMess), and a single
+// shared anchor advanced by whichever stat consumed less would silently
+// re-apply a stat's already-counted step on every subsequent call until the
+// other stat caught up — see docs/adr/0006's update note.
 func (p Pet) Advance(now time.Time) Pet {
-	if now.Before(p.LastSeenAt) {
+	if now.Before(p.LastSeenAt) || now.Before(p.HappinessLastSeenAt) {
 		// The clock went backwards (e.g. a corrected system clock). Ignore
 		// rather than produce a negative elapsed duration.
 		return p
 	}
 
-	elapsed := now.Sub(p.LastSeenAt)
+	// Advance each anchor only by the decay steps actually consumed, not all
+	// the way to now: the Next Screen's Beat fires far more often than a
+	// decay interval (seconds vs. minutes), so resetting an anchor to now on
+	// every call would discard each Beat's sub-interval progress before it
+	// ever accumulated into a whole step.
+	var hungerConsumed, happinessConsumed time.Duration
+	p.Hunger, hungerConsumed = decayStat(p.Hunger, now.Sub(p.LastSeenAt), HungerDecayInterval)
+	p.LastSeenAt = p.LastSeenAt.Add(hungerConsumed)
 
 	happinessInterval := HappinessDecayInterval
 	if p.HasMess(now) {
 		happinessInterval = MessHappinessDecayInterval
 	}
+	p.Happiness, happinessConsumed = decayStat(p.Happiness, now.Sub(p.HappinessLastSeenAt), happinessInterval)
+	p.HappinessLastSeenAt = p.HappinessLastSeenAt.Add(happinessConsumed)
 
-	var hungerConsumed, happinessConsumed time.Duration
-	p.Hunger, hungerConsumed = decayStat(p.Hunger, elapsed, HungerDecayInterval)
-	p.Happiness, happinessConsumed = decayStat(p.Happiness, elapsed, happinessInterval)
-
-	// Advance LastSeenAt only by the smaller of the two consumed durations,
-	// not all the way to now. The Next Screen's Beat fires far more often
-	// than a decay interval (seconds vs. minutes), so resetting LastSeenAt to
-	// now on every call would discard each Beat's sub-interval progress
-	// before it ever accumulated into a whole step — Hunger/Happiness would
-	// then only ever move via a single large offline catch-up, never while
-	// the game is actually running.
-	consumed := hungerConsumed
-	if happinessConsumed < consumed {
-		consumed = happinessConsumed
-	}
-	p.LastSeenAt = p.LastSeenAt.Add(consumed)
 	return p
 }
 

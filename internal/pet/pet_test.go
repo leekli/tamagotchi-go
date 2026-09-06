@@ -17,6 +17,7 @@ func TestNewSetsFieldsFromNow(t *testing.T) {
 
 	assert.Equal(t, now, p.CreatedAt)
 	assert.Equal(t, now, p.LastSeenAt)
+	assert.Equal(t, now, p.HappinessLastSeenAt)
 	assert.Equal(t, now, p.LastCleanedAt)
 	assert.Equal(t, pet.MaxStat, p.Hunger)
 	assert.Equal(t, pet.MaxStat, p.Happiness)
