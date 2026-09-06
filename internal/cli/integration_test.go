@@ -241,3 +241,71 @@ func TestPlayAndCleanKeyboardAndMouseReachTheSameState(t *testing.T) {
 	assert.False(t, byKeyboard.HasMess(time.Now()))
 	assert.False(t, byMouse.HasMess(time.Now()))
 }
+
+// runFeedSnack drives the Welcome Screen to the Next Screen, fast-forwards
+// past EggDuration the same way runPlayThenClean does, then selects Feed and
+// chooses Snack either by hotkey or by clicking the icon-bar and chooser
+// zones, and returns the resulting Pet.
+func runFeedSnack(t *testing.T, useMouse bool) pet.Pet {
+	t.Helper()
+
+	app := newTestApp(t)
+	tm := teatest.NewTestModel(t, app, teatest.WithInitialTermSize(100, 30))
+
+	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
+		return bytes.Contains(b, []byte("Press Enter or click to begin"))
+	}, teatest.WithDuration(3*time.Second))
+	tm.Send(tea.KeyMsg{Type: tea.KeyEnter})
+
+	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
+		return bytes.Contains(b, []byte("Hunger"))
+	}, teatest.WithDuration(3*time.Second))
+
+	tm.Send(anim.TickMsg{Time: time.Now().Add(pet.EggDuration + time.Second)})
+	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
+		return bytes.Contains(b, []byte("Feed"))
+	}, teatest.WithDuration(3*time.Second))
+
+	if useMouse {
+		z := waitForZone(t, next.FeedZoneID)
+		tm.Send(tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonLeft, X: (z.StartX + z.EndX) / 2, Y: z.StartY})
+	} else {
+		tm.Send(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
+	}
+	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
+		return bytes.Contains(b, []byte("Snack"))
+	}, teatest.WithDuration(3*time.Second))
+
+	if useMouse {
+		z := waitForZone(t, next.SnackZoneID)
+		tm.Send(tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonLeft, X: (z.StartX + z.EndX) / 2, Y: z.StartY})
+	} else {
+		tm.Send(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	}
+	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
+		return bytes.Contains(b, []byte("nom nom"))
+	}, teatest.WithDuration(3*time.Second))
+
+	tm.Send(tea.KeyMsg{Type: tea.KeyCtrlC})
+	tm.WaitFinished(t, teatest.WithFinalTimeout(3*time.Second))
+
+	final, ok := tm.FinalModel(t).(*tui.App)
+	require.True(t, ok)
+	screen, ok := final.Current().(*next.Screen)
+	require.True(t, ok)
+	return screen.Pet()
+}
+
+// TestFeedSnackKeyboardAndMouseReachTheSameState mirrors
+// TestPlayAndCleanKeyboardAndMouseReachTheSameState for the Feed sub-menu.
+func TestFeedSnackKeyboardAndMouseReachTheSameState(t *testing.T) {
+	t.Parallel()
+
+	byKeyboard := runFeedSnack(t, false)
+	byMouse := runFeedSnack(t, true)
+
+	assert.Equal(t, pet.MaxStat, byKeyboard.Happiness)
+	assert.Equal(t, pet.MaxStat, byMouse.Happiness)
+	assert.Equal(t, pet.BaseWeight+1, byKeyboard.Weight)
+	assert.Equal(t, pet.BaseWeight+1, byMouse.Weight)
+}

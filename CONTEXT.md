@@ -133,3 +133,7 @@ _Avoid_: command, verb
 The row of selectable Care-action icons the Next Screen shows once the Pet
 has hatched into a Baby, navigated by keyboard or mouse.
 _Avoid_: menu bar, toolbar
+
+**Meal** / **Snack**:
+The two choices offered by the Feed Care action. Meal restores Hunger with no
+side effect; Snack restores Happiness but adds Weight.

@@ -40,7 +40,13 @@ type Screen struct {
 	// selected is the currently highlighted icon in the icon bar (see
 	// iconbar.go). It cycles across numIcons, wrapping at both ends.
 	selected int
-	keys     keyMap
+	// menu is which selection is currently showing: the top-level icon bar,
+	// or Feed's Meal/Snack chooser.
+	menu menu
+	// feedSelected is the chooser's own selection index, kept separate from
+	// selected so a bug in one selection can't corrupt the other.
+	feedSelected int
+	keys         keyMap
 
 	// flourish is the current Care-action feedback text (e.g. "*tidied
 	// up*"), or "" when none is showing. flourishUntil is the frame at which
@@ -151,7 +157,11 @@ func (s *Screen) View() string {
 		s.styles.info.Render(infoLine(s.pet, s.now)),
 	)
 	if isBaby {
-		rows = append(rows, "", renderIconBar(s.selected, s.styles.icon, s.styles.iconSelected))
+		menuRow := renderIconBar(s.selected, s.styles.icon, s.styles.iconSelected)
+		if s.menu == menuFeedChoice {
+			menuRow = renderFeedChoice(s.feedSelected, s.styles.icon, s.styles.iconSelected)
+		}
+		rows = append(rows, "", menuRow)
 		if s.flourish != "" {
 			rows = append(rows, s.styles.flourish.Render(s.flourish))
 		}

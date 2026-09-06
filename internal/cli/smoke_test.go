@@ -124,6 +124,14 @@ func TestBinaryLaunchesAndQuits(t *testing.T) {
 	// out EggDuration in real time.
 	waitForOutputTimeout(t, out, "Play", pet.EggDuration+10*time.Second)
 
+	_, err = ptmx.Write([]byte("f"))
+	require.NoError(t, err)
+	waitForOutput(t, out, "Meal")
+
+	_, err = ptmx.Write([]byte("m"))
+	require.NoError(t, err)
+	waitForOutput(t, out, "munch munch")
+
 	_, err = ptmx.Write([]byte("p"))
 	require.NoError(t, err)
 	waitForOutput(t, out, "plays happily")

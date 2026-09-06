@@ -110,3 +110,21 @@ func renderIconBar(selected int, normal, selectedStyle lipgloss.Style) string {
 	}
 	return strings.Join(parts, "  ")
 }
+
+// renderFeedChoice draws Feed's inline Meal/Snack chooser, using the same
+// selection/zone-marking pattern as renderIconBar.
+func renderFeedChoice(selected int, normal, selectedStyle lipgloss.Style) string {
+	parts := make([]string, numFeedOptions)
+	for i := feedOption(0); i < numFeedOptions; i++ {
+		style := normal
+		if int(i) == selected {
+			style = selectedStyle
+		}
+		rendered := style.Render(fmt.Sprintf("[ %s ]", feedOptionLabel[i]))
+		if zone.DefaultManager != nil {
+			rendered = zone.Mark(feedZoneID[i], rendered)
+		}
+		parts[i] = rendered
+	}
+	return strings.Join(parts, "  ")
+}

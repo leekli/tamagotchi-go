@@ -15,6 +15,38 @@ import (
 // of the Play and Clean Care actions, mirroring
 // internal/tui/welcome/acceptance_test.go's style.
 
+func TestAcceptance_Feed(t *testing.T) {
+	t.Parallel()
+
+	t.Run("given the Feed icon is selected, when Meal is chosen, then Hunger increases and Weight does not", func(t *testing.T) {
+		p := pet.New(born)
+		p.Hunger = 1
+		s := babyScreen(t, p, &fakeStore{})
+
+		s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
+		s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}})
+
+		ns, ok := s.(*next.Screen)
+		require.True(t, ok)
+		assert.Equal(t, 2, ns.Pet().Hunger)
+		assert.Equal(t, pet.BaseWeight, ns.Pet().Weight)
+	})
+
+	t.Run("given the Feed icon is selected, when Snack is chosen, then Happiness and Weight both increase", func(t *testing.T) {
+		p := pet.New(born)
+		p.Happiness = 1
+		s := babyScreen(t, p, &fakeStore{})
+
+		s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
+		s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+
+		ns, ok := s.(*next.Screen)
+		require.True(t, ok)
+		assert.Equal(t, 2, ns.Pet().Happiness)
+		assert.Equal(t, pet.BaseWeight+1, ns.Pet().Weight)
+	})
+}
+
 func TestAcceptance_Play(t *testing.T) {
 	t.Parallel()
 
