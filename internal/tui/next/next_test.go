@@ -3,6 +3,7 @@ package next_test
 import (
 	"os"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -353,6 +354,29 @@ func TestShortHelpAdvertisesIconBarHintsOnlyOnceHatched(t *testing.T) {
 	assert.NotEmpty(t, baby.ShortHelp())
 }
 
+// TestShortHelpHasNoBlankBindings guards against a binding with no help text
+// (e.g. a Right-arrow key that only exists as a Left binding's second key)
+// slipping into a ShortHelp() list, where bubbles/help would render it as a
+// stray empty bullet regardless of whether it has visible help text.
+func TestShortHelpHasNoBlankBindings(t *testing.T) {
+	t.Parallel()
+
+	assertNoBlankBindings := func(t *testing.T, s tui.Screen) {
+		t.Helper()
+		hp, ok := s.(tui.HelpProvider)
+		require.True(t, ok)
+		for _, b := range hp.ShortHelp() {
+			assert.NotEmpty(t, b.Help().Key, "binding with empty help text in ShortHelp()")
+		}
+	}
+
+	icons := babyScreen(t, pet.New(born), &fakeStore{})
+	assertNoBlankBindings(t, icons)
+
+	feedChoice, _ := icons.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
+	assertNoBlankBindings(t, feedChoice)
+}
+
 // iconZone scans the screen until the named zone resolves (bubblezone
 // records positions on a worker goroutine) and returns its bounds, the same
 // pattern welcome_test.go's beginZone helper uses.
@@ -553,4 +577,28 @@ func TestMouseClickActivatesFeedChoice(t *testing.T) {
 
 		assert.Contains(t, stripANSI(s.View()), "Meal")
 	})
+}
+
+// TestViewHeightIsStableAcrossMessAndFlourishStateChanges guards against a
+// regression where the Mess indicator and the Care-action flourish were only
+// appended to the view when present, so the rest of the centred stack (art,
+// meters, icon bar) visibly shifted by a row whenever either appeared or
+// cleared — unlike the art, which reserves a fixed height for exactly this
+// reason.
+func TestViewHeightIsStableAcrossMessAndFlourishStateChanges(t *testing.T) {
+	t.Parallel()
+
+	lineCount := func(view string) int { return strings.Count(view, "\n") + 1 }
+
+	clean := babyScreen(t, pet.New(born), &fakeStore{})
+	baseline := lineCount(clean.View())
+
+	p := pet.New(born)
+	p.LastCleanedAt = born.Add(-pet.MessInterval)
+	messy := babyScreen(t, p, &fakeStore{})
+	assert.Equal(t, baseline, lineCount(messy.View()), "a visible Mess indicator should not change the view's height")
+
+	flourishing, _ := clean.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
+	require.Contains(t, stripANSI(flourishing.View()), "plays happily")
+	assert.Equal(t, baseline, lineCount(flourishing.View()), "a visible flourish should not change the view's height")
 }

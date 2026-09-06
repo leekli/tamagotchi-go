@@ -145,26 +145,34 @@ func (s *Screen) View() string {
 		frameArt, bob = babyPose(s.frame), babyBob(s.frame)
 	}
 
-	rows := []string{renderArtBox(frameArt, bob, s.styles.art)}
+	// The Mess line and the flourish line each always occupy a row, blank
+	// when absent, the same fixed-height discipline renderArtBox uses for
+	// the art (via artBoxHeight) — so a Mess appearing/clearing or a
+	// flourish showing/clearing never shifts the rest of the centred stack.
+	messLine := ""
 	if s.pet.HasMess(s.now) {
-		rows = append(rows, renderMessLine(s.styles.mess))
+		messLine = renderMessLine(s.styles.mess)
 	}
-	rows = append(rows,
+
+	rows := []string{
+		renderArtBox(frameArt, bob, s.styles.art),
+		messLine,
 		"",
 		renderMeter("Hunger", s.pet.Hunger, s.styles.meter),
 		renderMeter("Happiness", s.pet.Happiness, s.styles.meter),
 		"",
 		s.styles.info.Render(infoLine(s.pet, s.now)),
-	)
+	}
 	if isBaby {
 		menuRow := renderIconBar(s.selected, s.styles.icon, s.styles.iconSelected)
 		if s.menu == menuFeedChoice {
 			menuRow = renderFeedChoice(s.feedSelected, s.styles.icon, s.styles.iconSelected)
 		}
-		rows = append(rows, "", menuRow)
+		flourishLine := ""
 		if s.flourish != "" {
-			rows = append(rows, s.styles.flourish.Render(s.flourish))
+			flourishLine = s.styles.flourish.Render(s.flourish)
 		}
+		rows = append(rows, "", menuRow, flourishLine)
 	}
 
 	stack := lipgloss.JoinVertical(lipgloss.Center, rows...)

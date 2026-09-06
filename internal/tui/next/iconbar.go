@@ -237,8 +237,13 @@ func (s *Screen) shortHelp() []key.Binding {
 	if s.pet.Stage(s.now) != pet.StageBaby {
 		return nil
 	}
+	// s.keys.Right is deliberately excluded: it carries no help text of its
+	// own (s.keys.Left's "←/→ select" already describes both directions),
+	// and bubbles/help renders every binding passed here regardless of
+	// whether its help text is empty, which would otherwise show as a stray
+	// bullet.
 	if s.menu == menuFeedChoice {
-		return []key.Binding{s.keys.Left, s.keys.Right, s.keys.Enter, s.keys.Meal, s.keys.Snack, s.keys.Esc}
+		return []key.Binding{s.keys.Left, s.keys.Enter, s.keys.Meal, s.keys.Snack, s.keys.Esc}
 	}
-	return []key.Binding{s.keys.Left, s.keys.Right, s.keys.Enter, s.keys.Feed, s.keys.Play, s.keys.Clean}
+	return []key.Binding{s.keys.Left, s.keys.Enter, s.keys.Feed, s.keys.Play, s.keys.Clean}
 }
