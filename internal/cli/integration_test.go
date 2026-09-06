@@ -230,9 +230,15 @@ func runPlayThenClean(t *testing.T, useMouse bool) pet.Pet {
 // TestPlayAndCleanKeyboardAndMouseReachTheSameState proves the keyboard and
 // mouse paths through the icon bar are equivalent, matching the project's
 // "keyboard and mouse throughout" feature claim.
+//
+// Deliberately not t.Parallel(): its mouse-driven half calls waitForZone,
+// which reads bubblezone's process-wide DefaultManager — the same manager
+// every other running App in this process shares. Running concurrently with
+// another test that registers the same zone id (e.g. "next.play") risks
+// reading that other test's coordinates and clicking the wrong window,
+// exactly the hazard welcome_test.go's TestPromptClickZone comment already
+// documents for the same manager.
 func TestPlayAndCleanKeyboardAndMouseReachTheSameState(t *testing.T) {
-	t.Parallel()
-
 	byKeyboard := runPlayThenClean(t, false)
 	byMouse := runPlayThenClean(t, true)
 
@@ -298,9 +304,10 @@ func runFeedSnack(t *testing.T, useMouse bool) pet.Pet {
 
 // TestFeedSnackKeyboardAndMouseReachTheSameState mirrors
 // TestPlayAndCleanKeyboardAndMouseReachTheSameState for the Feed sub-menu.
+//
+// Deliberately not t.Parallel() — see that test's comment on waitForZone and
+// bubblezone's shared DefaultManager.
 func TestFeedSnackKeyboardAndMouseReachTheSameState(t *testing.T) {
-	t.Parallel()
-
 	byKeyboard := runFeedSnack(t, false)
 	byMouse := runFeedSnack(t, true)
 
@@ -381,9 +388,11 @@ func runFullCareLoop(t *testing.T, useMouse bool) pet.Pet {
 // TestFullCareLoopKeyboardAndMouseReachTheSameState proves a mouse-only run
 // and a keyboard-only run of the complete Feed -> Play -> Clean loop reach
 // identical end states.
+//
+// Deliberately not t.Parallel() — see
+// TestPlayAndCleanKeyboardAndMouseReachTheSameState's comment on waitForZone
+// and bubblezone's shared DefaultManager.
 func TestFullCareLoopKeyboardAndMouseReachTheSameState(t *testing.T) {
-	t.Parallel()
-
 	byKeyboard := runFullCareLoop(t, false)
 	byMouse := runFullCareLoop(t, true)
 
