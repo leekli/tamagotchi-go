@@ -39,9 +39,40 @@ func TestFileStoreRoundTripsSaveAndLoad(t *testing.T) {
 	require.True(t, ok)
 	assert.True(t, want.CreatedAt.Equal(got.CreatedAt))
 	assert.True(t, want.LastSeenAt.Equal(got.LastSeenAt))
+	assert.True(t, want.LastCleanedAt.Equal(got.LastCleanedAt))
 	assert.Equal(t, want.Hunger, got.Hunger)
 	assert.Equal(t, want.Happiness, got.Happiness)
 	assert.Equal(t, want.Weight, got.Weight)
+}
+
+// TestFileStoreLoadDefaultsLastCleanedAtForOldSaveFiles proves a save file
+// written before Mess existed (so its JSON has no last_cleaned_at) loads as
+// "never cleaned since birth" — i.e. LastCleanedAt defaults to CreatedAt —
+// rather than as freshly cleaned at the zero time.Time, which would read as
+// "just cleaned" instead of "cleaned a long time ago".
+func TestFileStoreLoadDefaultsLastCleanedAtForOldSaveFiles(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "save.json")
+	createdAt := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	body := `{
+		"schema_version": 1,
+		"created_at": "` + createdAt.Format(time.RFC3339Nano) + `",
+		"last_seen_at": "` + createdAt.Format(time.RFC3339Nano) + `",
+		"hunger": 4,
+		"happiness": 4,
+		"weight": 2
+	}`
+	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
+
+	got, ok, err := pet.NewFileStore(path).Load()
+
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.True(t, createdAt.Equal(got.LastCleanedAt),
+		"a pre-Mess save should default LastCleanedAt to CreatedAt, not the zero time")
+	assert.True(t, got.HasMess(createdAt.Add(pet.MessInterval)),
+		"defaulting to CreatedAt should read as messy after MessInterval has passed since birth, not freshly cleaned")
 }
 
 func TestFileStoreSaveCreatesMissingParentDirectory(t *testing.T) {

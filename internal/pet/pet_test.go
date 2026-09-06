@@ -17,9 +17,35 @@ func TestNewSetsFieldsFromNow(t *testing.T) {
 
 	assert.Equal(t, now, p.CreatedAt)
 	assert.Equal(t, now, p.LastSeenAt)
+	assert.Equal(t, now, p.LastCleanedAt)
 	assert.Equal(t, pet.MaxStat, p.Hunger)
 	assert.Equal(t, pet.MaxStat, p.Happiness)
 	assert.Equal(t, pet.BaseWeight, p.Weight)
+}
+
+func TestHasMessBeforeAtAndAfterMessInterval(t *testing.T) {
+	t.Parallel()
+
+	cleanedAt := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	p := pet.New(cleanedAt)
+
+	tests := map[string]struct {
+		now  time.Time
+		want bool
+	}{
+		"just cleaned":           {cleanedAt, false},
+		"just before Mess":       {cleanedAt.Add(pet.MessInterval - time.Nanosecond), false},
+		"exactly at Mess":        {cleanedAt.Add(pet.MessInterval), true},
+		"well past MessInterval": {cleanedAt.Add(pet.MessInterval + time.Hour), true},
+	}
+
+	for name, tt := range tests {
+		tt := tt
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, p.HasMess(tt.now))
+		})
+	}
 }
 
 func TestStageBeforeAtAndAfterEggDuration(t *testing.T) {

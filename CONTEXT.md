@@ -115,3 +115,11 @@ _Avoid_: drain, tick down
 **Save file**:
 The single JSON file holding the Pet's persisted state between runs.
 _Avoid_: save slot, profile (there is only ever one Pet, one save)
+
+**Mess**:
+The uncleaned state the Pet is left in once enough time has passed since it
+was last cleaned. While present it depresses Happiness Decay further; the
+Clean Care action removes it. Deliberately not called "poop" — keep the term
+politely abstract in code, comments, and UI copy; the small pile glyph shown
+on screen can still read as one.
+_Avoid_: poop

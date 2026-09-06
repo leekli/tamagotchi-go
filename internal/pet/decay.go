@@ -12,6 +12,14 @@ import "time"
 // StageEgg. In practice EggDuration is short enough that this rarely
 // matters, but it's a deliberate simplification — coupling Advance to Stage
 // would tie together two things this package otherwise keeps independent.
+//
+// Happiness decays at MessHappinessDecayInterval, rather than
+// HappinessDecayInterval, whenever the Pet HasMess as of now — a single rate
+// for the whole elapsed window, chosen by the state at the end of it. A
+// window that straddles the exact moment a Mess would have appeared partway
+// through is not split into two rates: that would double the complexity of
+// the partial-step accounting below for a boundary nobody is watching in
+// real time.
 func (p Pet) Advance(now time.Time) Pet {
 	if now.Before(p.LastSeenAt) {
 		// The clock went backwards (e.g. a corrected system clock). Ignore
@@ -21,9 +29,14 @@ func (p Pet) Advance(now time.Time) Pet {
 
 	elapsed := now.Sub(p.LastSeenAt)
 
+	happinessInterval := HappinessDecayInterval
+	if p.HasMess(now) {
+		happinessInterval = MessHappinessDecayInterval
+	}
+
 	var hungerConsumed, happinessConsumed time.Duration
 	p.Hunger, hungerConsumed = decayStat(p.Hunger, elapsed, HungerDecayInterval)
-	p.Happiness, happinessConsumed = decayStat(p.Happiness, elapsed, HappinessDecayInterval)
+	p.Happiness, happinessConsumed = decayStat(p.Happiness, elapsed, happinessInterval)
 
 	// Advance LastSeenAt only by the smaller of the two consumed durations,
 	// not all the way to now. The Next Screen's Beat fires far more often

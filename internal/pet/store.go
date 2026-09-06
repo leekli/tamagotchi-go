@@ -50,6 +50,11 @@ type saveFile struct {
 	SchemaVersion int       `json:"schema_version"`
 	CreatedAt     time.Time `json:"created_at"`
 	LastSeenAt    time.Time `json:"last_seen_at"`
+	// LastCleanedAt is absent from any save file written before Mess
+	// existed; its zero time.Time unmarshals fine and is corrected to
+	// CreatedAt by withLoadDefaults below, so no schema_version bump is
+	// needed for this field.
+	LastCleanedAt time.Time `json:"last_cleaned_at,omitzero"`
 	Hunger        int       `json:"hunger"`
 	Happiness     int       `json:"happiness"`
 	Weight        int       `json:"weight"`
@@ -76,13 +81,14 @@ func (f FileStore) Load() (Pet, bool, error) {
 		return Pet{}, false, fmt.Errorf("pet: save file has schema version %d, want %d", sf.SchemaVersion, schemaVersion)
 	}
 
-	return Pet{
-		CreatedAt:  sf.CreatedAt,
-		LastSeenAt: sf.LastSeenAt,
-		Hunger:     sf.Hunger,
-		Happiness:  sf.Happiness,
-		Weight:     sf.Weight,
-	}, true, nil
+	return withLoadDefaults(Pet{
+		CreatedAt:     sf.CreatedAt,
+		LastSeenAt:    sf.LastSeenAt,
+		LastCleanedAt: sf.LastCleanedAt,
+		Hunger:        sf.Hunger,
+		Happiness:     sf.Happiness,
+		Weight:        sf.Weight,
+	}), true, nil
 }
 
 // Save implements Store. It writes atomically enough not to corrupt the file
@@ -99,6 +105,7 @@ func (f FileStore) Save(p Pet) error {
 		SchemaVersion: schemaVersion,
 		CreatedAt:     p.CreatedAt,
 		LastSeenAt:    p.LastSeenAt,
+		LastCleanedAt: p.LastCleanedAt,
 		Hunger:        p.Hunger,
 		Happiness:     p.Happiness,
 		Weight:        p.Weight,
