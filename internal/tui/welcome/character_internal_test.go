@@ -13,6 +13,18 @@ import (
 
 func charWidth() int { return art.Width(marutchiRight[0]) }
 
+// TestWanderSpanClampsToAtLeastOne guards the defensive branch charState
+// relies on but never itself hits with the game's real, fixed constants: a
+// box authored narrower than (or equal to) the Character's art would
+// otherwise produce a zero or negative span and divide by zero below.
+func TestWanderSpanClampsToAtLeastOne(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, 1, wanderSpan(5, 10), "a box narrower than the art should clamp to a span of 1, not go negative")
+	assert.Equal(t, 1, wanderSpan(5, 5), "an exact fit has no room to wander, so it also clamps to 1")
+	assert.Equal(t, 3, wanderSpan(10, 7), "a box wider than the art wanders across the leftover width")
+}
+
 func TestCharStartsCentredFacingRight(t *testing.T) {
 	t.Parallel()
 

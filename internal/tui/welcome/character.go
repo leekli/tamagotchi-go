@@ -39,14 +39,23 @@ const (
 	facingLeft
 )
 
+// wanderSpan returns the free width the Character has to walk across inside a
+// box of the given width, given how wide the Character's own art is. It
+// clamps to at least 1, so a box authored too narrow for the art still
+// produces a period below rather than a division by zero.
+func wanderSpan(boxWidth, artWidth int) int {
+	span := boxWidth - artWidth
+	if span < 1 {
+		return 1
+	}
+	return span
+}
+
 // charState is the Character's wander state as a pure function of the animation
 // frame count: it walks back and forth across the free width of the box,
 // starting centred and heading right, bobbing one row as it goes, forever.
 func charState(frame int) (x int, dir facing, bob, step int) {
-	span := charBoxWidth - art.Width(marutchiRight[0])
-	if span < 1 {
-		span = 1
-	}
+	span := wanderSpan(charBoxWidth, art.Width(marutchiRight[0]))
 
 	cell := frame / charFramesPerCell
 	// Offset the path by half its span so frame 0 sits centred, heading right.

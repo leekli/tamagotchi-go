@@ -1,7 +1,9 @@
 package art_test
 
 import (
+	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -100,4 +102,27 @@ func TestMirrorSwapsTheMiddleGlyphOfAnOddWidthRow(t *testing.T) {
 
 	out := art.Mirror([]string{"a/b"})
 	assert.Equal(t, "d\\a", out[0])
+}
+
+// FuzzMirrorPreservesShape hardens Mirror against arbitrary input, including
+// non-ASCII runes and ragged rows the handwritten cases above don't try: for
+// any rows, Mirror must never panic, must return exactly as many rows as it
+// was given, and must pad every one of them to the input's widest row.
+func FuzzMirrorPreservesShape(f *testing.F) {
+	f.Add("abc\ndef\nghij")
+	f.Add("/<[{\nb  d")
+	f.Add("")
+	f.Add("a\n\nbb")
+
+	f.Fuzz(func(t *testing.T, blob string) {
+		rows := strings.Split(blob, "\n")
+		width := art.Width(rows)
+
+		out := art.Mirror(rows)
+
+		require.Len(t, out, len(rows), "Mirror must preserve the number of rows")
+		for _, r := range out {
+			assert.Equal(t, width, utf8.RuneCountInString(r), "every output row should be padded to the input's widest row")
+		}
+	})
 }

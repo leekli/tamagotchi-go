@@ -1,6 +1,7 @@
 package next_test
 
 import (
+	"errors"
 	"os"
 	"regexp"
 	"strings"
@@ -214,6 +215,27 @@ func TestOnQuitSavesTheCurrentPetViaTheStore(t *testing.T) {
 	require.Len(t, store.saved, 1)
 }
 
+// TestOnQuitDiscardsAFailedSaveWithoutPanicking proves a Store whose Save
+// fails on quit still leaves the app able to exit cleanly, matching
+// pet.SaveCmd's documented "a failed save is not fatal" contract.
+func TestOnQuitDiscardsAFailedSaveWithoutPanicking(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeStore{saveErr: errors.New("disk full")}
+	s := newScreen(t, pet.New(born), store)
+
+	qh, ok := s.(tui.QuitHandler)
+	require.True(t, ok)
+
+	cmd := qh.OnQuit()
+	require.NotNil(t, cmd)
+
+	assert.NotPanics(t, func() {
+		assert.Nil(t, cmd())
+	})
+	assert.Len(t, store.saved, 1, "Save should still have been attempted")
+}
+
 func TestScreenNowIsSeededFromInitialLastSeenAt(t *testing.T) {
 	t.Parallel()
 
@@ -245,6 +267,36 @@ func TestIconBarHiddenUntilBabyStage(t *testing.T) {
 	hp, ok := s.(tui.HelpProvider)
 	require.True(t, ok)
 	assert.Empty(t, hp.ShortHelp(), "no care-action hints while the Pet is an Egg")
+}
+
+// TestIconBarKeyIsNoopBeforeHatch proves a Care-action hotkey pressed while
+// the Pet is still an Egg does nothing — there is nothing to act on yet.
+func TestIconBarKeyIsNoopBeforeHatch(t *testing.T) {
+	t.Parallel()
+
+	s := sizedScreen(t, pet.New(born), &fakeStore{})
+
+	s, cmd := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
+
+	assert.Nil(t, cmd)
+	ns, ok := s.(*next.Screen)
+	require.True(t, ok)
+	assert.Equal(t, pet.New(born).Happiness, ns.Pet().Happiness, "a hotkey before hatching should not run any Care action")
+}
+
+// TestIconBarMouseIsNoopBeforeHatch mirrors TestIconBarKeyIsNoopBeforeHatch
+// for a mouse click.
+func TestIconBarMouseIsNoopBeforeHatch(t *testing.T) {
+	t.Parallel()
+
+	s := sizedScreen(t, pet.New(born), &fakeStore{})
+
+	s, cmd := s.Update(tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonLeft, X: 0, Y: 0})
+
+	assert.Nil(t, cmd)
+	ns, ok := s.(*next.Screen)
+	require.True(t, ok)
+	assert.Equal(t, pet.New(born).Happiness, ns.Pet().Happiness, "a click before hatching should not run any Care action")
 }
 
 func TestIconBarAppearsAfterHatch(t *testing.T) {
@@ -440,6 +492,32 @@ func TestMouseClickActivatesTheMatchingIcon(t *testing.T) {
 		require.True(t, ok)
 		assert.Equal(t, pet.New(born).Happiness, ns.Pet().Happiness)
 	})
+
+	t.Run("a release on the Play zone does nothing", func(t *testing.T) {
+		p := pet.New(born)
+		p.Happiness = 1
+		s := babyScreen(t, p, &fakeStore{})
+		z := iconZone(t, s, next.PlayZoneID)
+
+		s, cmd := s.Update(tea.MouseMsg{Action: tea.MouseActionRelease, Button: tea.MouseButtonLeft, X: (z.StartX + z.EndX) / 2, Y: z.StartY})
+		assert.Nil(t, cmd)
+		ns, ok := s.(*next.Screen)
+		require.True(t, ok)
+		assert.Equal(t, 1, ns.Pet().Happiness, "only a press should activate Play, not a release")
+	})
+
+	t.Run("a right-button press on the Play zone does nothing", func(t *testing.T) {
+		p := pet.New(born)
+		p.Happiness = 1
+		s := babyScreen(t, p, &fakeStore{})
+		z := iconZone(t, s, next.PlayZoneID)
+
+		s, cmd := s.Update(tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonRight, X: (z.StartX + z.EndX) / 2, Y: z.StartY})
+		assert.Nil(t, cmd)
+		ns, ok := s.(*next.Screen)
+		require.True(t, ok)
+		assert.Equal(t, 1, ns.Pet().Happiness, "only a left-button press should activate Play")
+	})
 }
 
 func TestActivatingFeedOpensTheChooserWithoutChangingStats(t *testing.T) {
@@ -494,6 +572,22 @@ func TestFeedChoiceMealAndSnack(t *testing.T) {
 		assert.Equal(t, 2, ns.Pet().Happiness)
 		assert.Equal(t, pet.BaseWeight+1, ns.Pet().Weight)
 		assert.Contains(t, stripANSI(s.View()), "nom nom")
+	})
+
+	t.Run("Snack increases Happiness and Weight, via Left wrapping from Meal", func(t *testing.T) {
+		p := pet.New(born)
+		p.Hunger, p.Happiness = 1, 1
+		s := babyScreen(t, p, &fakeStore{})
+
+		s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}}) // opens on Meal
+		s, _ = s.Update(tea.KeyMsg{Type: tea.KeyLeft})                      // wraps Meal -> Snack
+		s, _ = s.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
+		ns, ok := s.(*next.Screen)
+		require.True(t, ok)
+		assert.Equal(t, 1, ns.Pet().Hunger)
+		assert.Equal(t, 2, ns.Pet().Happiness)
+		assert.Equal(t, pet.BaseWeight+1, ns.Pet().Weight)
 	})
 }
 
@@ -577,6 +671,22 @@ func TestMouseClickActivatesFeedChoice(t *testing.T) {
 
 		assert.Contains(t, stripANSI(s.View()), "Meal")
 	})
+
+	t.Run("a click outside both Meal and Snack does nothing", func(t *testing.T) {
+		p := pet.New(born)
+		p.Happiness = 1
+		s := babyScreen(t, p, &fakeStore{})
+		s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
+		iconZone(t, s, next.MealZoneID) // ensure the chooser's zones are known, so this is a real miss
+
+		s, cmd := s.Update(tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonLeft, X: 0, Y: 0})
+
+		assert.Nil(t, cmd)
+		ns, ok := s.(*next.Screen)
+		require.True(t, ok)
+		assert.Equal(t, 1, ns.Pet().Happiness, "a miss should not feed")
+		assert.Contains(t, stripANSI(s.View()), "Meal", "the chooser should still be open")
+	})
 }
 
 // TestViewHeightIsStableAcrossMessAndFlourishStateChanges guards against a
@@ -601,4 +711,29 @@ func TestViewHeightIsStableAcrossMessAndFlourishStateChanges(t *testing.T) {
 	flourishing, _ := clean.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
 	require.Contains(t, stripANSI(flourishing.View()), "plays happily")
 	assert.Equal(t, baseline, lineCount(flourishing.View()), "a visible flourish should not change the view's height")
+}
+
+// TestIconBarMouseIsSafeBeforeAnyManagerExists proves updateIconBarMouse
+// guards against a nil zone.DefaultManager — the state a Screen would see if
+// a click ever arrived before bubblezone had been initialised — the same way
+// the Welcome Screen's isBeginClick does; see welcome_test.go's
+// TestZoneGuardsAreSafeBeforeAnyManagerExists.
+//
+// Deliberately not t.Parallel(): it mutates the shared zone.DefaultManager, so
+// it must run in the serial phase before any parallel test could read it.
+func TestIconBarMouseIsSafeBeforeAnyManagerExists(t *testing.T) {
+	saved := zone.DefaultManager
+	zone.DefaultManager = nil
+	defer func() { zone.DefaultManager = saved }()
+
+	p := pet.New(born)
+	p.Happiness = 1
+	s := babyScreen(t, p, &fakeStore{})
+
+	s, cmd := s.Update(tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonLeft, X: 0, Y: 0})
+
+	assert.Nil(t, cmd)
+	ns, ok := s.(*next.Screen)
+	require.True(t, ok)
+	assert.Equal(t, 1, ns.Pet().Happiness, "a click must not activate anything while no zone manager exists to resolve it")
 }

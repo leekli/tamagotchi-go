@@ -273,6 +273,31 @@ func TestPromptClickZone(t *testing.T) {
 	})
 }
 
+// TestZoneGuardsAreSafeBeforeAnyManagerExists proves the Welcome Screen's
+// mouse handling and rendering are safe before bubblezone has ever been
+// initialised (e.g. the very first frame of a real run, or a Screen driven
+// directly in a unit test): isBeginClick and renderPrompt each guard against
+// a nil zone.DefaultManager, and this is the one test able to observe that
+// nil state, since TestMain above installs a live manager for the rest of
+// the package's tests.
+//
+// Deliberately not t.Parallel(): it mutates the shared zone.DefaultManager,
+// so it must run in the serial phase before any parallel test could read it.
+func TestZoneGuardsAreSafeBeforeAnyManagerExists(t *testing.T) {
+	saved := zone.DefaultManager
+	zone.DefaultManager = nil
+	defer func() { zone.DefaultManager = saved }()
+
+	s := sizedScreen(t, 100, 30)
+
+	var view string
+	assert.NotPanics(t, func() { view = s.View() })
+	assert.Contains(t, stripANSI(view), "Press Enter or click to begin")
+
+	_, cmd := s.Update(tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonLeft, X: 0, Y: 0})
+	assert.Nil(t, cmd, "a click must not navigate while no zone manager exists to resolve it")
+}
+
 var ansiSeq = regexp.MustCompile("\x1b\\[[0-9;]*m")
 
 // stripANSI removes SGR colour sequences so plain-text art can be matched.

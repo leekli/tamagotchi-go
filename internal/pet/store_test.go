@@ -1,6 +1,7 @@
 package pet_test
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -137,6 +138,122 @@ func TestFileStoreLoadWrongSchemaVersionReturnsError(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.False(t, ok)
+}
+
+// TestFileStoreLoadUnreadableFileReturnsError covers Load's other read-error
+// branch: not "the file doesn't exist" (already covered above) but "the file
+// exists and can't be read" — permission denied, in this case. Load must wrap
+// and return the error rather than panicking or silently treating it as a
+// missing file.
+func TestFileStoreLoadUnreadableFileReturnsError(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("chmod-based permission checks don't apply when running as root")
+	}
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "save.json")
+	require.NoError(t, os.WriteFile(path, []byte(`{"schema_version":1}`), 0o600))
+	require.NoError(t, os.Chmod(path, 0o000))
+	t.Cleanup(func() { _ = os.Chmod(path, 0o600) }) // so t.TempDir() can remove it afterwards
+
+	p, ok, err := pet.NewFileStore(path).Load()
+
+	assert.Error(t, err)
+	assert.False(t, ok)
+	assert.Zero(t, p)
+}
+
+// TestFileStoreSaveFailsWhenAParentPathComponentIsAFile exercises Save's
+// os.MkdirAll error branch: the save path's parent can't be created because
+// something already occupies that name and it isn't a directory.
+func TestFileStoreSaveFailsWhenAParentPathComponentIsAFile(t *testing.T) {
+	t.Parallel()
+
+	blocker := filepath.Join(t.TempDir(), "blocker")
+	require.NoError(t, os.WriteFile(blocker, []byte("not a directory"), 0o600))
+
+	err := pet.NewFileStore(filepath.Join(blocker, "save.json")).Save(pet.New(time.Now()))
+
+	assert.Error(t, err)
+}
+
+// TestFileStoreSaveFailsWhenDirectoryIsNotWritable exercises Save's
+// os.CreateTemp error branch: the parent directory already exists (so
+// MkdirAll is a no-op) but has no write permission, so the temp file can't be
+// created.
+func TestFileStoreSaveFailsWhenDirectoryIsNotWritable(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("chmod-based permission checks don't apply when running as root")
+	}
+	t.Parallel()
+
+	dir := t.TempDir()
+	require.NoError(t, os.Chmod(dir, 0o500))
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) }) // so t.TempDir() can remove it afterwards
+
+	err := pet.NewFileStore(filepath.Join(dir, "save.json")).Save(pet.New(time.Now()))
+
+	assert.Error(t, err)
+}
+
+// TestFileStoreSaveFailsWhenTargetPathIsADirectory exercises Save's
+// os.Rename error branch: the temp file is written successfully, but the
+// final rename fails because the target path is already occupied by a
+// directory rather than a file.
+func TestFileStoreSaveFailsWhenTargetPathIsADirectory(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "save.json")
+	require.NoError(t, os.Mkdir(path, 0o750))
+
+	err := pet.NewFileStore(path).Save(pet.New(time.Now()))
+
+	assert.Error(t, err)
+}
+
+// failingStore is a pet.Store whose Save always fails, used to prove
+// SaveCmd's documented contract: a failed save is discarded, not surfaced.
+type failingStore struct{ err error }
+
+func (failingStore) Load() (pet.Pet, bool, error) { return pet.Pet{}, false, nil }
+
+func (f failingStore) Save(pet.Pet) error { return f.err }
+
+// TestSaveCmdDiscardsAFailedSave proves SaveCmd's Cmd still returns its
+// documented nil Msg, and does not panic, when the underlying Store fails —
+// a failed save must not be fatal to a running game.
+func TestSaveCmdDiscardsAFailedSave(t *testing.T) {
+	t.Parallel()
+
+	cmd := pet.SaveCmd(failingStore{err: errors.New("disk full")}, pet.New(time.Now()))
+
+	assert.NotPanics(t, func() {
+		assert.Nil(t, cmd(), "SaveCmd's message is nil regardless of whether the save succeeded")
+	})
+}
+
+// FuzzFileStoreLoadNeverPanics hardens Load's JSON parsing beyond the two
+// handwritten malformed inputs above: for any bytes written to the save
+// file, Load must never panic, and must never report both ok and a non-nil
+// error at once.
+func FuzzFileStoreLoadNeverPanics(f *testing.F) {
+	f.Add([]byte(`{"schema_version":1,"created_at":"2026-01-01T00:00:00Z","last_seen_at":"2026-01-01T00:00:00Z","hunger":4,"happiness":4,"weight":2}`))
+	f.Add([]byte("{not json"))
+	f.Add([]byte(`{"schema_version":99}`))
+	f.Add([]byte(""))
+	f.Add([]byte(`null`))
+	f.Add([]byte(`{"schema_version":1,"hunger":-999999999999}`))
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		path := filepath.Join(t.TempDir(), "save.json")
+		require.NoError(t, os.WriteFile(path, data, 0o600))
+
+		_, ok, err := pet.NewFileStore(path).Load()
+
+		if ok {
+			assert.NoError(t, err, "Load must never report both ok and an error")
+		}
+	})
 }
 
 func TestDefaultSavePathIncludesAppDirectory(t *testing.T) {
