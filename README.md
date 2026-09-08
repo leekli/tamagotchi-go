@@ -117,6 +117,28 @@ one-line help bar. It also scans each composed frame for
 [bubblezone](https://github.com/lrstanley/bubblezone) markers so Screens can
 name precise click targets.
 
+```mermaid
+flowchart TD
+    Main["cmd/tamagotchi-go"] --> CLI["internal/cli"]
+    CLI -->|"load Pet at startup"| Pet
+    CLI --> App["internal/tui.App<br/>owns one active Screen"]
+
+    subgraph Screens["internal/tui/*"]
+        Welcome["Welcome Screen"]
+        Next["Next Screen"]
+    end
+
+    App -->|"routes Msg, applies NavigateMsg"| Welcome
+    App -->|"routes Msg, applies NavigateMsg"| Next
+    Welcome -.->|"NavigateMsg: begin"| Next
+
+    Welcome --> Anim["internal/anim<br/>frame clock"]
+    Welcome --> Art["internal/art<br/>embedded ASCII"]
+    Next --> Anim
+
+    Next -->|"Care actions, Advance(now), deferred save"| Pet["internal/pet<br/>Stage, Decay, Care, Store"]
+```
+
 Two small support packages back the Welcome Screen: `internal/anim` (a
 fixed-rate frame clock and easing helpers, injectable so animation is
 deterministic under test) and `internal/art` (a `//go:embed` loader for the
@@ -147,12 +169,6 @@ internal/art/           embedded ASCII art loader and mirror helper
 docs/adr/               architecture decision records
 .github/workflows/      CI pipeline
 ```
-
-## Contributing
-
-`lefthook install` sets up the pre-commit and pre-push hooks. Commits follow
-[Conventional Commits](https://www.conventionalcommits.org/). See
-[`CLAUDE.md`](CLAUDE.md) for the working agreement.
 
 ## Licence
 
