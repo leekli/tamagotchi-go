@@ -10,18 +10,20 @@ toy (1996–1997), built in Go with the [Bubble Tea](https://github.com/charmbra
 TUI framework.
 
 ```
- ____   ____  _    _  ____   ____   ____   ____   ____  _    _  ____ 
+ ____   ____  _    _  ____   ____   ____   ____   ____  _    _  ____
 (_  _) ( __ ) |\  /| ( __ ) / ___) / __ \ (_  _) / ___) | |  | (_  _)
-  ||   | || | | \/ | | || | | / _  | |  |   ||   | / __ | |__|   ||  
-  ||   |(__)| | /\ | |(__)| | (_ ) | |  |   ||   | \__  |  __|   ||  
-  ||   | || | |/  \| | || | \ __/  \ __ /   ||   \ ___) | |  |  _||_ 
+  ||   | || | | \/ | | || | | / _  | |  |   ||   | / __ | |__|   ||
+  ||   |(__)| | /\ | |(__)| | (_ ) | |  |   ||   | \__  |  __|   ||
+  ||   | || | |/  \| | || | \ __/  \ __ /   ||   \ ___) | |  |  _||_
   ()   |_||_| |_||_| |_||_|  \__)   \__/    ()    \__)  |_|  | (____)
 
                              ,--.
                             ( o o)
-                             >`-'          
+                             >`-'
 ```
 
+> [!NOTE]
+> This project is built using `Claude Code`. This is a project to aid my own learning of using Agentic AI tooling 🤖
 
 ## Features
 
@@ -43,16 +45,16 @@ TUI framework.
 
 ## Controls
 
-| Key | Action |
-|-----|--------|
-| <kbd>Enter</kbd>, or a click on the begin prompt | Begin (advance from the Welcome Screen) |
-| <kbd>↑</kbd> <kbd>↓</kbd> <kbd>PgUp</kbd> <kbd>PgDn</kbd> <kbd>Home</kbd> <kbd>End</kbd> / wheel | Scroll (on scrollable Screens) |
-| <kbd>←</kbd> <kbd>→</kbd> / <kbd>h</kbd> <kbd>l</kbd>, or a click on an icon | Select a Care action or Feed's Meal/Snack choice (Next Screen, once the Pet is a Baby) |
-| <kbd>Enter</kbd> | Activate the selected icon or choice (Next Screen) |
-| <kbd>f</kbd> <kbd>p</kbd> <kbd>c</kbd> | Feed, Play, or Clean directly, from any selection (Next Screen) |
-| <kbd>m</kbd> <kbd>s</kbd> | Choose Meal or Snack directly, once Feed's chooser is open (Next Screen) |
-| <kbd>Esc</kbd> | Cancel Feed's Meal/Snack chooser (Next Screen); quit (Welcome Screen) |
-| <kbd>Ctrl</kbd>+<kbd>C</kbd> | Quit (any Screen) |
+| Key                                                                                              | Action                                                                                 |
+| ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| <kbd>Enter</kbd>, or a click on the begin prompt                                                 | Begin (advance from the Welcome Screen)                                                |
+| <kbd>↑</kbd> <kbd>↓</kbd> <kbd>PgUp</kbd> <kbd>PgDn</kbd> <kbd>Home</kbd> <kbd>End</kbd> / wheel | Scroll (on scrollable Screens)                                                         |
+| <kbd>←</kbd> <kbd>→</kbd> / <kbd>h</kbd> <kbd>l</kbd>, or a click on an icon                     | Select a Care action or Feed's Meal/Snack choice (Next Screen, once the Pet is a Baby) |
+| <kbd>Enter</kbd>                                                                                 | Activate the selected icon or choice (Next Screen)                                     |
+| <kbd>f</kbd> <kbd>p</kbd> <kbd>c</kbd>                                                           | Feed, Play, or Clean directly, from any selection (Next Screen)                        |
+| <kbd>m</kbd> <kbd>s</kbd>                                                                        | Choose Meal or Snack directly, once Feed's chooser is open (Next Screen)               |
+| <kbd>Esc</kbd>                                                                                   | Cancel Feed's Meal/Snack chooser (Next Screen); quit (Welcome Screen)                  |
+| <kbd>Ctrl</kbd>+<kbd>C</kbd>                                                                     | Quit (any Screen)                                                                      |
 
 ## Requirements
 
@@ -176,5 +178,5 @@ docs/adr/               architecture decision records
 
 ---
 
-*Unofficial fan project. Not affiliated with, endorsed by, or sponsored by
-Bandai. "Tamagotchi" is a registered trademark of Bandai.*
+_Unofficial fan project. Not affiliated with, endorsed by, or sponsored by
+Bandai. "Tamagotchi" is a registered trademark of Bandai._
