@@ -19,7 +19,7 @@ var eggArt = art.MustLoad("egg.txt")
 // babyFrames are the Baby-stage's two idle poses, reused from the Welcome
 // Screen's Marutchi walk cycle: it gives the Pet visual continuity with the
 // Character introduced at launch, without new asset-authoring risk.
-var babyFrames = [2][]string{
+var babyFrames = [][]string{
 	art.MustLoad("marutchi-walk-1.txt"),
 	art.MustLoad("marutchi-walk-2.txt"),
 }
@@ -32,7 +32,7 @@ var childArt = art.MustLoad("child.txt")
 // teenFrames are the Teen-stage's two idle poses: a visibly bigger, more
 // grown-up-looking walk cycle than Child's single static pose, so a Teen
 // reads as a further step up in liveliness rather than a repeat of Child.
-var teenFrames = [2][]string{
+var teenFrames = [][]string{
 	art.MustLoad("teen-walk-1.txt"),
 	art.MustLoad("teen-walk-2.txt"),
 }
@@ -55,18 +55,16 @@ const (
 	teenPoseFramesPerStep = 8
 )
 
-// babyPose returns the Baby's current idle pose for frame.
-func babyPose(frame int) []string {
-	return babyFrames[anim.Cycle(frame, babyPoseFramesPerStep, len(babyFrames))]
-}
-
-// teenPose returns the Teen's current idle pose for frame.
-func teenPose(frame int) []string {
-	return teenFrames[anim.Cycle(frame, teenPoseFramesPerStep, len(teenFrames))]
+// alternatingPose returns the current pose out of frames for frame, advancing
+// one step every framesPerStep frames — the pose-cycling behind both Baby's
+// and Teen's idle walk cycles, so a further alternating-pose Stage needs no
+// copy of this same one-liner.
+func alternatingPose(frames [][]string, framesPerStep, frame int) []string {
+	return frames[anim.Cycle(frame, framesPerStep, len(frames))]
 }
 
 // hatchedBob returns the vertical bob offset for frame shared by every
-// hatched Stage (Baby and Child), the same anim.Bob pattern
+// hatched Stage (Baby, Child, and Teen), the same anim.Bob pattern
 // welcome/character.go uses for the Character's walk bob.
 func hatchedBob(frame int) int {
 	return anim.Bob(frame, bobFramesPerStep)

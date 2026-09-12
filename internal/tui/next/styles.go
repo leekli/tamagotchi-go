@@ -9,8 +9,8 @@ import (
 // styles holds the Lip Gloss styles the Next Screen paints with, derived
 // from the shared palette rather than inventing a new colour scheme.
 type styles struct {
-	art          lipgloss.Style // the Pet's Egg/Baby/Child art
-	stageLabel   lipgloss.Style // the Stage label ("Egg"/"Baby"/"Child")
+	art          lipgloss.Style // the Pet's Egg/Baby/Child/Teen art
+	stageLabel   lipgloss.Style // the Stage label ("Egg"/"Baby"/"Child"/"Teen")
 	meter        lipgloss.Style // Hunger/Happiness pip meters
 	info         lipgloss.Style // Age and Weight
 	mess         lipgloss.Style // the Mess indicator glyph

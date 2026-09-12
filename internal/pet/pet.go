@@ -136,6 +136,9 @@ func New(now time.Time) Pet {
 
 // Stage reports the Pet's life stage as of now. It is derived from
 // CreatedAt rather than stored, so it can never drift out of sync with it.
+// Cases must stay ordered from the largest cumulative duration to the
+// smallest: a future Stage added below Teen's case, rather than above it,
+// would never be reached, since Teen's condition would already have matched.
 func (p Pet) Stage(now time.Time) Stage {
 	age := now.Sub(p.CreatedAt)
 	switch {
