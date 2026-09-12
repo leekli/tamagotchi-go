@@ -312,9 +312,10 @@ func TestOnQuitDiscardsAFailedSaveWithoutPanicking(t *testing.T) {
 func TestScreenNowIsSeededFromInitialLastSeenAt(t *testing.T) {
 	t.Parallel()
 
-	// Advance only moves LastSeenAt forward by whole HungerDecayInterval
-	// steps, so this must be a multiple of it for LastSeenAt to actually
-	// reach born+3m rather than staying at born.
+	// A duration of exactly one HungerDecayInterval both moves LastSeenAt
+	// forward by a whole step (Advance only ever consumes whole steps, so a
+	// fractional interval would leave it at born) and stays well short of
+	// EggDuration+BabyDuration — this test wants Baby art, not Child art.
 	initial := pet.New(born).Advance(born.Add(pet.HungerDecayInterval)) // LastSeenAt moves to born+3m
 	s := sizedScreen(t, initial, &fakeStore{})
 
