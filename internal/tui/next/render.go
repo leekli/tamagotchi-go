@@ -24,6 +24,11 @@ var babyFrames = [2][]string{
 	art.MustLoad("marutchi-walk-2.txt"),
 }
 
+// childArt is the Child-stage's single idle pose. Unlike Baby it doesn't
+// alternate poses — just the shared hatchedBob — since a Child is meant to
+// read as visually settled next to Baby's fidgeting.
+var childArt = art.MustLoad("child.txt")
+
 // messArt is the small pile glyph shown while the Pet HasMess — a status
 // indicator, not a set piece, so it's kept tiny.
 var messArt = art.MustLoad("mess.txt")
@@ -31,13 +36,13 @@ var messArt = art.MustLoad("mess.txt")
 const (
 	// artBoxHeight leaves a row of bob headroom above and below the art, the
 	// same technique welcome/character.go uses for the Character's bob, so
-	// hatching or bobbing never shifts the rest of the stack.
+	// hatching, growing, or bobbing never shifts the rest of the stack.
 	artBoxHeight = 5
 
-	// babyBobFramesPerStep and babyPoseFramesPerStep pace the Baby's idle
-	// motion: a gentle bob and an occasional pose change, not a walk cycle —
-	// full walking around the Screen is a later feature.
-	babyBobFramesPerStep  = 4
+	// bobFramesPerStep and babyPoseFramesPerStep pace a hatched Pet's idle
+	// motion: a gentle bob (Baby and Child both) and, for Baby only, an
+	// occasional pose change — not a walk cycle, which is a later feature.
+	bobFramesPerStep      = 4
 	babyPoseFramesPerStep = 8
 )
 
@@ -46,10 +51,11 @@ func babyPose(frame int) []string {
 	return babyFrames[(frame/babyPoseFramesPerStep)%len(babyFrames)]
 }
 
-// babyBob returns the Baby's vertical bob offset for frame, the same
-// anim.Bob pattern welcome/character.go uses for the Character's walk bob.
-func babyBob(frame int) int {
-	return anim.Bob(frame, babyBobFramesPerStep)
+// hatchedBob returns the vertical bob offset for frame shared by every
+// hatched Stage (Baby and Child), the same anim.Bob pattern
+// welcome/character.go uses for the Character's walk bob.
+func hatchedBob(frame int) int {
+	return anim.Bob(frame, bobFramesPerStep)
 }
 
 // renderArtBox draws frameArt inside a fixed-height block, offset vertically

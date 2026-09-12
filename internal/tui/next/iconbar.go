@@ -104,10 +104,10 @@ func defaultKeyMap() keyMap {
 func (s *Screen) Selected() int { return s.selected }
 
 // updateIconBarKey handles a key press against whichever menu is currently
-// open. It is a no-op before the Pet has hatched into a Baby — there is
-// nothing to act on yet.
+// open. It is a no-op before the Pet has hatched — there is nothing to act
+// on yet.
 func (s *Screen) updateIconBarKey(msg tea.KeyMsg) (tui.Screen, tea.Cmd) {
-	if s.pet.Stage(s.now) != pet.StageBaby {
+	if !s.pet.Stage(s.now).Hatched() {
 		return s, nil
 	}
 	if s.menu == menuFeedChoice {
@@ -165,7 +165,7 @@ func (s *Screen) updateFeedChoiceKey(msg tea.KeyMsg) (tui.Screen, tea.Cmd) {
 // zones are currently live. Like updateIconBarKey, it is a no-op before the
 // Pet has hatched.
 func (s *Screen) updateIconBarMouse(msg tea.MouseMsg) (tui.Screen, tea.Cmd) {
-	if s.pet.Stage(s.now) != pet.StageBaby {
+	if !s.pet.Stage(s.now).Hatched() {
 		return s, nil
 	}
 	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
@@ -234,7 +234,7 @@ func wrap(i, delta, n int) int {
 // shortHelp returns the current menu's key hints, or nil before the Pet has
 // hatched — there's nothing to hint at yet.
 func (s *Screen) shortHelp() []key.Binding {
-	if s.pet.Stage(s.now) != pet.StageBaby {
+	if !s.pet.Stage(s.now).Hatched() {
 		return nil
 	}
 	// s.keys.Right is deliberately excluded: it carries no help text of its

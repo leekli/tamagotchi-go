@@ -138,11 +138,14 @@ func (s *Screen) OnQuit() tea.Cmd {
 
 // View implements tui.Screen.
 func (s *Screen) View() string {
-	isBaby := s.pet.Stage(s.now) == pet.StageBaby
+	stage := s.pet.Stage(s.now)
 
 	frameArt, bob := eggArt, 0
-	if isBaby {
-		frameArt, bob = babyPose(s.frame), babyBob(s.frame)
+	switch stage {
+	case pet.StageBaby:
+		frameArt, bob = babyPose(s.frame), hatchedBob(s.frame)
+	case pet.StageChild:
+		frameArt, bob = childArt, hatchedBob(s.frame)
 	}
 
 	// The Mess line and the flourish line each always occupy a row, blank
@@ -163,7 +166,7 @@ func (s *Screen) View() string {
 		"",
 		s.styles.info.Render(infoLine(s.pet, s.now)),
 	}
-	if isBaby {
+	if stage.Hatched() {
 		menuRow := renderIconBar(s.selected, s.styles.icon, s.styles.iconSelected)
 		if s.menu == menuFeedChoice {
 			menuRow = renderFeedChoice(s.feedSelected, s.styles.icon, s.styles.iconSelected)
