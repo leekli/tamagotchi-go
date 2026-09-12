@@ -17,6 +17,8 @@ const (
 	StageBaby
 	// StageChild is the Pet's stage once it has spent BabyDuration as a Baby.
 	StageChild
+	// StageTeen is the Pet's stage once it has spent ChildDuration as a Child.
+	StageTeen
 )
 
 const (
@@ -57,6 +59,12 @@ const (
 	// enough that a patient single session still reaches it. Don't "correct"
 	// this back to real-hardware timing.
 	BabyDuration = 10 * time.Minute
+
+	// ChildDuration is how long the Pet stays a Child before it grows into a
+	// Teen, once it has grown into one. Continues BabyDuration's escalating
+	// pacing: a third milestone that's still reachable within a patient
+	// single session. Don't "correct" this back to real-hardware timing.
+	ChildDuration = 15 * time.Minute
 
 	// HungerDecayInterval is the wall-clock duration per one-point Hunger
 	// Decay step. Deliberately on the order of single-digit minutes, not the
@@ -131,6 +139,8 @@ func New(now time.Time) Pet {
 func (p Pet) Stage(now time.Time) Stage {
 	age := now.Sub(p.CreatedAt)
 	switch {
+	case age >= EggDuration+BabyDuration+ChildDuration:
+		return StageTeen
 	case age >= EggDuration+BabyDuration:
 		return StageChild
 	case age >= EggDuration:
@@ -154,6 +164,8 @@ func (s Stage) String() string {
 		return "Baby"
 	case StageChild:
 		return "Child"
+	case StageTeen:
+		return "Teen"
 	default:
 		return "Egg"
 	}

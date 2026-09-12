@@ -87,7 +87,32 @@ func TestStageBeforeAtAndAfterBabyDuration(t *testing.T) {
 		"just hatched into Baby":         {born.Add(pet.EggDuration), pet.StageBaby},
 		"just before growing into Child": {born.Add(pet.EggDuration + pet.BabyDuration - time.Nanosecond), pet.StageBaby},
 		"exactly at growing into Child":  {born.Add(pet.EggDuration + pet.BabyDuration), pet.StageChild},
-		"well after growing into Child":  {born.Add(pet.EggDuration + pet.BabyDuration + time.Hour), pet.StageChild},
+		"well after growing into Child":  {born.Add(pet.EggDuration + pet.BabyDuration + time.Minute), pet.StageChild},
+	}
+
+	for name, tt := range tests {
+		tt := tt
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, p.Stage(tt.now))
+		})
+	}
+}
+
+func TestStageBeforeAtAndAfterChildDuration(t *testing.T) {
+	t.Parallel()
+
+	born := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	p := pet.New(born)
+
+	tests := map[string]struct {
+		now  time.Time
+		want pet.Stage
+	}{
+		"just grew into Child":          {born.Add(pet.EggDuration + pet.BabyDuration), pet.StageChild},
+		"just before growing into Teen": {born.Add(pet.EggDuration + pet.BabyDuration + pet.ChildDuration - time.Nanosecond), pet.StageChild},
+		"exactly at growing into Teen":  {born.Add(pet.EggDuration + pet.BabyDuration + pet.ChildDuration), pet.StageTeen},
+		"well after growing into Teen":  {born.Add(pet.EggDuration + pet.BabyDuration + pet.ChildDuration + time.Hour), pet.StageTeen},
 	}
 
 	for name, tt := range tests {
@@ -132,6 +157,7 @@ func TestStageHatched(t *testing.T) {
 	assert.False(t, pet.StageEgg.Hatched())
 	assert.True(t, pet.StageBaby.Hatched())
 	assert.True(t, pet.StageChild.Hatched())
+	assert.True(t, pet.StageTeen.Hatched())
 }
 
 func TestStageString(t *testing.T) {
@@ -140,6 +166,7 @@ func TestStageString(t *testing.T) {
 	assert.Equal(t, "Egg", pet.StageEgg.String())
 	assert.Equal(t, "Baby", pet.StageBaby.String())
 	assert.Equal(t, "Child", pet.StageChild.String())
+	assert.Equal(t, "Teen", pet.StageTeen.String())
 }
 
 func TestAgeIsElapsedSinceCreation(t *testing.T) {
