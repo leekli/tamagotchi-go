@@ -239,11 +239,14 @@ func TestOnQuitDiscardsAFailedSaveWithoutPanicking(t *testing.T) {
 func TestScreenNowIsSeededFromInitialLastSeenAt(t *testing.T) {
 	t.Parallel()
 
-	initial := pet.New(born).Advance(born.Add(time.Hour)) // LastSeenAt moves to born+1h
+	// Advance only moves LastSeenAt forward by whole HungerDecayInterval
+	// steps, so this must be a multiple of it for LastSeenAt to actually
+	// reach born+3m rather than staying at born.
+	initial := pet.New(born).Advance(born.Add(pet.HungerDecayInterval)) // LastSeenAt moves to born+3m
 	s := sizedScreen(t, initial, &fakeStore{})
 
-	// The hatch boundary (EggDuration after CreatedAt=born) has long passed
-	// relative to the seeded now (born+1h), so the Screen should already
+	// The hatch boundary (EggDuration after CreatedAt=born) has passed
+	// relative to the seeded now (born+3m), so the Screen should already
 	// show the Baby art on its very first render — before any anim.TickMsg.
 	view := stripANSI(s.View())
 	assert.Contains(t, view, "( o o)")

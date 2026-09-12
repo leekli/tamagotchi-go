@@ -15,6 +15,8 @@ const (
 	StageEgg Stage = iota
 	// StageBaby is the Pet's stage once it has Hatched.
 	StageBaby
+	// StageChild is the Pet's stage once it has spent BabyDuration as a Baby.
+	StageChild
 )
 
 const (
@@ -33,6 +35,13 @@ const (
 	// an early "it's alive" moment on first launch, mirroring the original
 	// hardware's power-on hatch rather than its hours-long real-world pacing.
 	EggDuration = 30 * time.Second
+
+	// BabyDuration is how long the Pet stays a Baby before it grows into a
+	// Child, once it has Hatched. Chosen to be a few minutes — long enough to
+	// feel like a genuine second milestone beyond the initial Hatch, short
+	// enough that a patient single session still reaches it. Don't "correct"
+	// this back to real-hardware timing.
+	BabyDuration = 10 * time.Minute
 
 	// HungerDecayInterval is the wall-clock duration per one-point Hunger
 	// Decay step. Deliberately on the order of single-digit minutes, not the
@@ -101,10 +110,34 @@ func New(now time.Time) Pet {
 // Stage reports the Pet's life stage as of now. It is derived from
 // CreatedAt rather than stored, so it can never drift out of sync with it.
 func (p Pet) Stage(now time.Time) Stage {
-	if now.Sub(p.CreatedAt) >= EggDuration {
+	age := now.Sub(p.CreatedAt)
+	switch {
+	case age >= EggDuration+BabyDuration:
+		return StageChild
+	case age >= EggDuration:
 		return StageBaby
+	default:
+		return StageEgg
 	}
-	return StageEgg
+}
+
+// Hatched reports whether s is any Stage other than Egg. It is the single
+// condition governing whether the Next Screen's icon bar and Care actions
+// are available, so a future additional Stage doesn't require re-auditing
+// every comparison against a specific Stage value.
+func (s Stage) Hatched() bool { return s != StageEgg }
+
+// String returns Stage's display name, used by the Next Screen's on-screen
+// Stage label.
+func (s Stage) String() string {
+	switch s {
+	case StageBaby:
+		return "Baby"
+	case StageChild:
+		return "Child"
+	default:
+		return "Egg"
+	}
 }
 
 // Age reports how long the Pet has been alive as of now.
