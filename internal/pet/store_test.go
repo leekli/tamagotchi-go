@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -80,6 +81,50 @@ func TestFileStoreLoadDefaultsCareActionFieldsForOldSaveFiles(t *testing.T) {
 		"defaulting to CreatedAt should read as messy after MessInterval has passed since birth, not freshly cleaned")
 	assert.True(t, lastSeenAt.Equal(got.HappinessLastSeenAt),
 		"a pre-Care-actions save should default HappinessLastSeenAt to LastSeenAt")
+}
+
+// TestFileStoreLoadClampsWeightOutOfRangeFromOldSaveFiles proves a save file
+// written before MaxWeight existed (when Snack's Weight gain was uncapped)
+// is corrected to a valid Weight immediately on load, rather than being left
+// out of range until the next Feed(Snack) silently snaps it down.
+func TestFileStoreLoadClampsWeightOutOfRangeFromOldSaveFiles(t *testing.T) {
+	t.Parallel()
+
+	createdAt := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	body := func(weight int) string {
+		return `{
+			"schema_version": 1,
+			"created_at": "` + createdAt.Format(time.RFC3339Nano) + `",
+			"last_seen_at": "` + createdAt.Format(time.RFC3339Nano) + `",
+			"hunger": 4,
+			"happiness": 4,
+			"weight": ` + strconv.Itoa(weight) + `
+		}`
+	}
+
+	t.Run("above MaxWeight", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), "save.json")
+		require.NoError(t, os.WriteFile(path, []byte(body(50)), 0o600))
+
+		got, ok, err := pet.NewFileStore(path).Load()
+
+		require.NoError(t, err)
+		require.True(t, ok)
+		assert.Equal(t, pet.MaxWeight, got.Weight)
+	})
+
+	t.Run("below BaseWeight", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), "save.json")
+		require.NoError(t, os.WriteFile(path, []byte(body(-3)), 0o600))
+
+		got, ok, err := pet.NewFileStore(path).Load()
+
+		require.NoError(t, err)
+		require.True(t, ok)
+		assert.Equal(t, pet.BaseWeight, got.Weight)
+	})
 }
 
 func TestFileStoreSaveCreatesMissingParentDirectory(t *testing.T) {

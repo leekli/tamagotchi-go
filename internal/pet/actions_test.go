@@ -66,21 +66,22 @@ func TestFeedSnack(t *testing.T) {
 			fed := p.Feed(pet.Snack)
 
 			assert.Equal(t, tt.wantHappiness, fed.Happiness)
-			assert.Equal(t, startWeight+1, fed.Weight, "Snack adds Weight, uncapped")
+			assert.Equal(t, startWeight+1, fed.Weight, "Snack adds Weight")
 			assert.Equal(t, startHunger, fed.Hunger, "Snack must not change Hunger")
 		})
 	}
 }
 
-func TestFeedSnackWeightIsUncapped(t *testing.T) {
+func TestFeedSnackWeightCapsAtMaxWeight(t *testing.T) {
 	t.Parallel()
 
 	p := pet.New(actionsBorn)
-	for range 10 {
+	// BaseWeight to MaxWeight is 10 Snacks; a few more prove it stays capped.
+	for range 15 {
 		p = p.Feed(pet.Snack)
 	}
 
-	assert.Equal(t, pet.BaseWeight+10, p.Weight)
+	assert.Equal(t, pet.MaxWeight, p.Weight, "Snack should never push Weight past MaxWeight, however many times it's chosen")
 }
 
 func TestPlay(t *testing.T) {
