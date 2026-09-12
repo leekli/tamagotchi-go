@@ -318,12 +318,16 @@ func TestFeedSnackKeyboardAndMouseReachTheSameState(t *testing.T) {
 }
 
 // runFullCareLoop drives the Welcome Screen to the Next Screen, fast-forwards
-// past EggDuration, then exercises all three Care actions in one continuous
-// run — Feed (Snack), then Play, then Clean — either entirely by hotkey or
-// entirely by clicking icon-bar and chooser zones, and returns the resulting
-// Pet. This is the "keyboard and mouse throughout" claim made good across
-// the complete loop, not just per action.
-func runFullCareLoop(t *testing.T, useMouse bool) pet.Pet {
+// by growBy (past EggDuration to reach Baby, or past
+// EggDuration+BabyDuration to reach Child), then exercises all three Care
+// actions in one continuous run — Feed (Snack), then Play, then Clean —
+// either entirely by hotkey or entirely by clicking icon-bar and chooser
+// zones, and returns the resulting Pet. This is the "keyboard and mouse
+// throughout" claim made good across the complete loop, not just per
+// action, at whichever Stage growBy reaches. waitFor is the text to wait for
+// once the fast-forward tick lands, confirming the Screen has rendered that
+// Stage before any Care action is attempted.
+func runFullCareLoop(t *testing.T, useMouse bool, growBy time.Duration, waitFor string) pet.Pet {
 	t.Helper()
 
 	app := newTestApp(t)
@@ -338,9 +342,11 @@ func runFullCareLoop(t *testing.T, useMouse bool) pet.Pet {
 		return bytes.Contains(b, []byte("Hunger"))
 	}, teatest.WithDuration(3*time.Second))
 
-	tm.Send(anim.TickMsg{Time: time.Now().Add(pet.EggDuration + time.Second)})
+	// Not real time: growBy has elapsed relative to the Pet's birth, fed
+	// through a single synthetic anim.TickMsg — no sleeping.
+	tm.Send(anim.TickMsg{Time: time.Now().Add(growBy)})
 	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
-		return bytes.Contains(b, []byte("Feed"))
+		return bytes.Contains(b, []byte(waitFor))
 	}, teatest.WithDuration(3*time.Second))
 
 	press := func(hotkey rune, zoneID string) {
@@ -393,8 +399,30 @@ func runFullCareLoop(t *testing.T, useMouse bool) pet.Pet {
 // TestPlayAndCleanKeyboardAndMouseReachTheSameState's comment on waitForZone
 // and bubblezone's shared DefaultManager.
 func TestFullCareLoopKeyboardAndMouseReachTheSameState(t *testing.T) {
-	byKeyboard := runFullCareLoop(t, false)
-	byMouse := runFullCareLoop(t, true)
+	byKeyboard := runFullCareLoop(t, false, pet.EggDuration+time.Second, "Feed")
+	byMouse := runFullCareLoop(t, true, pet.EggDuration+time.Second, "Feed")
+
+	assert.Equal(t, pet.MaxStat, byKeyboard.Happiness)
+	assert.Equal(t, pet.MaxStat, byMouse.Happiness)
+	assert.Equal(t, pet.BaseWeight+1, byKeyboard.Weight)
+	assert.Equal(t, pet.BaseWeight+1, byMouse.Weight)
+	assert.False(t, byKeyboard.HasMess(time.Now()))
+	assert.False(t, byMouse.HasMess(time.Now()))
+}
+
+// TestFullCareLoopKeyboardAndMouseReachTheSameStateAsChild mirrors
+// TestFullCareLoopKeyboardAndMouseReachTheSameState, proving the same
+// keyboard/mouse equivalence once the Pet has grown into a Child, not just
+// as a Baby — waiting for the "Child" Stage label specifically, rather than
+// just "Feed", confirms the fast-forward actually reached that Stage.
+//
+// Deliberately not t.Parallel() — see
+// TestPlayAndCleanKeyboardAndMouseReachTheSameState's comment on waitForZone
+// and bubblezone's shared DefaultManager.
+func TestFullCareLoopKeyboardAndMouseReachTheSameStateAsChild(t *testing.T) {
+	growBy := pet.EggDuration + pet.BabyDuration + time.Second
+	byKeyboard := runFullCareLoop(t, false, growBy, "Child")
+	byMouse := runFullCareLoop(t, true, growBy, "Child")
 
 	assert.Equal(t, pet.MaxStat, byKeyboard.Happiness)
 	assert.Equal(t, pet.MaxStat, byMouse.Happiness)

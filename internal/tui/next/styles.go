@@ -9,7 +9,8 @@ import (
 // styles holds the Lip Gloss styles the Next Screen paints with, derived
 // from the shared palette rather than inventing a new colour scheme.
 type styles struct {
-	art          lipgloss.Style // the Pet's Egg/Baby art
+	art          lipgloss.Style // the Pet's Egg/Baby/Child art
+	stageLabel   lipgloss.Style // the Stage label ("Egg"/"Baby"/"Child")
 	meter        lipgloss.Style // Hunger/Happiness pip meters
 	info         lipgloss.Style // Age and Weight
 	mess         lipgloss.Style // the Mess indicator glyph
@@ -21,6 +22,7 @@ type styles struct {
 func newStyles(p tui.Palette) styles {
 	return styles{
 		art:          lipgloss.NewStyle().Foreground(p.Accent),
+		stageLabel:   lipgloss.NewStyle().Foreground(p.Dim),
 		meter:        lipgloss.NewStyle().Foreground(p.Screen),
 		info:         lipgloss.NewStyle().Foreground(p.Dim),
 		mess:         lipgloss.NewStyle().Foreground(p.Dim),

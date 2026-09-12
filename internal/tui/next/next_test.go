@@ -39,6 +39,13 @@ func babyScreen(t *testing.T, initial pet.Pet, store pet.Store) tui.Screen {
 	return advanceAnim(t, s, born.Add(pet.EggDuration), 1)
 }
 
+// childScreen mirrors babyScreen, but grown all the way into a Child.
+func childScreen(t *testing.T, initial pet.Pet, store pet.Store) tui.Screen {
+	t.Helper()
+	s := sizedScreen(t, initial, store)
+	return advanceAnim(t, s, born.Add(pet.EggDuration+pet.BabyDuration), 1)
+}
+
 // fakeStore is an in-memory pet.Store for tests, recording every Save.
 type fakeStore struct {
 	saved   []pet.Pet
@@ -131,6 +138,72 @@ func TestViewDoesNotUnHatchIfTheClockGoesBackwards(t *testing.T) {
 	view := stripANSI(s.View())
 	assert.Contains(t, view, "( o o)", "should still show Baby art")
 	assert.NotContains(t, view, ".--.", "should not revert to Egg art")
+}
+
+func TestViewShowsChildAfterBabyDuration(t *testing.T) {
+	t.Parallel()
+
+	s := sizedScreen(t, pet.New(born), &fakeStore{})
+	s = advanceAnim(t, s, born.Add(pet.EggDuration), 1)
+	require.Contains(t, stripANSI(s.View()), "( o o)", "should be a Baby before BabyDuration has elapsed")
+
+	s = advanceAnim(t, s, born.Add(pet.EggDuration+pet.BabyDuration), 1)
+	view := stripANSI(s.View())
+	assert.Contains(t, view, "( ^  ^)", "Child art should be shown after BabyDuration has elapsed")
+	assert.NotContains(t, view, "( o o)", "Baby art should no longer appear")
+}
+
+func TestIconBarAndCareActionsRemainAvailableForChild(t *testing.T) {
+	t.Parallel()
+
+	p := pet.New(born)
+	p.Happiness = 1
+	s := childScreen(t, p, &fakeStore{})
+
+	view := stripANSI(s.View())
+	assert.Contains(t, view, "Feed")
+	assert.Contains(t, view, "Play")
+	assert.Contains(t, view, "Clean")
+
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
+	ns, ok := s.(*next.Screen)
+	require.True(t, ok)
+	assert.Equal(t, 2, ns.Pet().Happiness, "Play should still work once the Pet is a Child")
+}
+
+func TestMouseClickActivatesIconsForChild(t *testing.T) {
+	t.Parallel()
+
+	p := pet.New(born)
+	p.Happiness = 1
+	s := childScreen(t, p, &fakeStore{})
+
+	s = clickZone(t, s, next.PlayZoneID)
+
+	ns, ok := s.(*next.Screen)
+	require.True(t, ok)
+	assert.Equal(t, 2, ns.Pet().Happiness, "clicking Play should still work once the Pet is a Child")
+}
+
+func TestShortHelpAdvertisesIconBarHintsForChildToo(t *testing.T) {
+	t.Parallel()
+
+	child, ok := childScreen(t, pet.New(born), &fakeStore{}).(tui.HelpProvider)
+	require.True(t, ok)
+	assert.NotEmpty(t, child.ShortHelp())
+}
+
+func TestViewShowsTheStageLabelForEggBabyAndChild(t *testing.T) {
+	t.Parallel()
+
+	s := sizedScreen(t, pet.New(born), &fakeStore{})
+	assert.Contains(t, stripANSI(s.View()), "Egg", "should show the Egg label before Hatch")
+
+	s = advanceAnim(t, s, born.Add(pet.EggDuration), 1)
+	assert.Contains(t, stripANSI(s.View()), "Baby", "should show the Baby label after Hatch")
+
+	s = advanceAnim(t, s, born.Add(pet.EggDuration+pet.BabyDuration), 1)
+	assert.Contains(t, stripANSI(s.View()), "Child", "should show the Child label once grown")
 }
 
 func TestHungerAndHappinessMetersShowTheRightPips(t *testing.T) {
@@ -239,11 +312,15 @@ func TestOnQuitDiscardsAFailedSaveWithoutPanicking(t *testing.T) {
 func TestScreenNowIsSeededFromInitialLastSeenAt(t *testing.T) {
 	t.Parallel()
 
-	initial := pet.New(born).Advance(born.Add(time.Hour)) // LastSeenAt moves to born+1h
+	// A duration of exactly one HungerDecayInterval both moves LastSeenAt
+	// forward by a whole step (Advance only ever consumes whole steps, so a
+	// fractional interval would leave it at born) and stays well short of
+	// EggDuration+BabyDuration — this test wants Baby art, not Child art.
+	initial := pet.New(born).Advance(born.Add(pet.HungerDecayInterval)) // LastSeenAt moves to born+3m
 	s := sizedScreen(t, initial, &fakeStore{})
 
-	// The hatch boundary (EggDuration after CreatedAt=born) has long passed
-	// relative to the seeded now (born+1h), so the Screen should already
+	// The hatch boundary (EggDuration after CreatedAt=born) has passed
+	// relative to the seeded now (born+3m), so the Screen should already
 	// show the Baby art on its very first render — before any anim.TickMsg.
 	view := stripANSI(s.View())
 	assert.Contains(t, view, "( o o)")

@@ -79,6 +79,28 @@ func TestAcceptance_HatchesAfterEggDuration(t *testing.T) {
 	})
 }
 
+func TestAcceptance_GrowsIntoChildAfterBabyDuration(t *testing.T) {
+	t.Run("given the Pet is a Baby when BabyDuration has elapsed then it has grown into a Child", func(t *testing.T) {
+		born := time.Now()
+		store := pet.NewFileStore(filepath.Join(t.TempDir(), "save.json"))
+		screen, _ := next.New(pet.New(born), store).Update(tea.WindowSizeMsg{Width: 80, Height: 23})
+
+		// Not real time: EggDuration has elapsed relative to born, fed through
+		// the same anim.TickMsg the Screen tracks "now" from — no sleeping.
+		screen, _ = screen.Update(anim.TickMsg{Time: born.Add(pet.EggDuration)})
+		ns, ok := screen.(*next.Screen)
+		require.True(t, ok)
+		require.Equal(t, pet.StageBaby, ns.Pet().Stage(born.Add(pet.EggDuration)))
+
+		// Likewise not real time: BabyDuration has elapsed on top of that.
+		screen, _ = screen.Update(anim.TickMsg{Time: born.Add(pet.EggDuration + pet.BabyDuration)})
+
+		ns, ok = screen.(*next.Screen)
+		require.True(t, ok)
+		assert.Equal(t, pet.StageChild, ns.Pet().Stage(born.Add(pet.EggDuration+pet.BabyDuration)))
+	})
+}
+
 func TestAcceptance_QuitSavesTheCurrentPet(t *testing.T) {
 	t.Run("given the game is running when the player quits then the current Pet state is saved", func(t *testing.T) {
 		store := pet.NewFileStore(filepath.Join(t.TempDir(), "save.json"))
