@@ -99,8 +99,9 @@ type Pet struct {
 	Hunger int
 	// Happiness ranges 0 (unhappy) .. MaxStat (happy).
 	Happiness int
-	// Weight is set once at birth to BaseWeight. Fixed for now; a later
-	// feature makes it dynamic.
+	// Weight starts at BaseWeight and moves only via Care actions (Snack
+	// increases it, Play decreases it, floored at BaseWeight) — never from
+	// elapsed time.
 	Weight int
 }
 
