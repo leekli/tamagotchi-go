@@ -403,3 +403,92 @@ func TestFullCareLoopKeyboardAndMouseReachTheSameState(t *testing.T) {
 	assert.False(t, byKeyboard.HasMess(time.Now()))
 	assert.False(t, byMouse.HasMess(time.Now()))
 }
+
+// runFullCareLoopAsChild mirrors runFullCareLoop, but fast-forwards all the
+// way past BabyDuration first, so the whole Feed -> Play -> Clean loop is
+// proven to still work, keyboard and mouse alike, once the Pet has grown
+// into a Child.
+func runFullCareLoopAsChild(t *testing.T, useMouse bool) pet.Pet {
+	t.Helper()
+
+	app := newTestApp(t)
+	tm := teatest.NewTestModel(t, app, teatest.WithInitialTermSize(100, 30))
+
+	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
+		return bytes.Contains(b, []byte("Press Enter or click to begin"))
+	}, teatest.WithDuration(3*time.Second))
+	tm.Send(tea.KeyMsg{Type: tea.KeyEnter})
+
+	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
+		return bytes.Contains(b, []byte("Hunger"))
+	}, teatest.WithDuration(3*time.Second))
+
+	// Not real time: EggDuration+BabyDuration has elapsed relative to the
+	// Pet's birth, fed through a single synthetic anim.TickMsg, the same
+	// technique runFullCareLoop uses to reach Baby.
+	tm.Send(anim.TickMsg{Time: time.Now().Add(pet.EggDuration + pet.BabyDuration + time.Second)})
+	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
+		return bytes.Contains(b, []byte("Child"))
+	}, teatest.WithDuration(3*time.Second))
+
+	press := func(hotkey rune, zoneID string) {
+		if useMouse {
+			z := waitForZone(t, zoneID)
+			tm.Send(tea.MouseMsg{
+				Action: tea.MouseActionPress, Button: tea.MouseButtonLeft,
+				X: (z.StartX + z.EndX) / 2, Y: z.StartY,
+			})
+			return
+		}
+		tm.Send(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{hotkey}})
+	}
+
+	press('f', next.FeedZoneID)
+	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
+		return bytes.Contains(b, []byte("Snack"))
+	}, teatest.WithDuration(3*time.Second))
+
+	press('s', next.SnackZoneID)
+	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
+		return bytes.Contains(b, []byte("nom nom"))
+	}, teatest.WithDuration(3*time.Second))
+
+	press('p', next.PlayZoneID)
+	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
+		return bytes.Contains(b, []byte("plays happily"))
+	}, teatest.WithDuration(3*time.Second))
+
+	press('c', next.CleanZoneID)
+	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
+		return bytes.Contains(b, []byte("tidied up"))
+	}, teatest.WithDuration(3*time.Second))
+
+	tm.Send(tea.KeyMsg{Type: tea.KeyCtrlC})
+	tm.WaitFinished(t, teatest.WithFinalTimeout(3*time.Second))
+
+	final, ok := tm.FinalModel(t).(*tui.App)
+	require.True(t, ok)
+	screen, ok := final.Current().(*next.Screen)
+	require.True(t, ok)
+	return screen.Pet()
+}
+
+// TestFullCareLoopKeyboardAndMouseReachTheSameStateAsChild mirrors
+// TestFullCareLoopKeyboardAndMouseReachTheSameState, proving the same
+// keyboard/mouse equivalence once the Pet has grown into a Child, not just
+// as a Baby.
+//
+// Deliberately not t.Parallel() — see
+// TestPlayAndCleanKeyboardAndMouseReachTheSameState's comment on waitForZone
+// and bubblezone's shared DefaultManager.
+func TestFullCareLoopKeyboardAndMouseReachTheSameStateAsChild(t *testing.T) {
+	byKeyboard := runFullCareLoopAsChild(t, false)
+	byMouse := runFullCareLoopAsChild(t, true)
+
+	assert.Equal(t, pet.MaxStat, byKeyboard.Happiness)
+	assert.Equal(t, pet.MaxStat, byMouse.Happiness)
+	assert.Equal(t, pet.BaseWeight+1, byKeyboard.Weight)
+	assert.Equal(t, pet.BaseWeight+1, byMouse.Weight)
+	assert.False(t, byKeyboard.HasMess(time.Now()))
+	assert.False(t, byMouse.HasMess(time.Now()))
+}
