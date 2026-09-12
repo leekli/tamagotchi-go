@@ -15,9 +15,9 @@ const (
 // Feed applies kind's effect and returns the updated Pet. Meal restores one
 // point of Hunger, capped at MaxStat, with no other effect. Snack restores
 // one point of Happiness, capped at MaxStat, and adds one point of Weight —
-// uncapped, since nothing in this feature reads Weight as anything other
-// than a display number yet; a later feature (evolution) is free to give it
-// a ceiling once something actually needs one.
+// uncapped here, since Weight's own ceiling is behavioural rather than a
+// hard cap: reaching OverfedThreshold accelerates Happiness decay, and Play
+// is the Care action that brings Weight back down.
 func (p Pet) Feed(kind FoodKind) Pet {
 	switch kind {
 	case Snack:
@@ -31,9 +31,12 @@ func (p Pet) Feed(kind FoodKind) Pet {
 	return p
 }
 
-// Play restores one point of Happiness, capped at MaxStat.
+// Play restores one point of Happiness, capped at MaxStat, and reduces
+// Weight by one point, floored at BaseWeight — a real counterbalance to
+// Snack's Weight cost, so a Care action exists to bring Weight back down.
 func (p Pet) Play() Pet {
 	p.Happiness = min(p.Happiness+1, MaxStat)
+	p.Weight = max(p.Weight-1, BaseWeight)
 	return p
 }
 

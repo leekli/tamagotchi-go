@@ -35,7 +35,9 @@ TUI framework.
 - A full Care loop once the Pet has hatched: Feed it a Meal or a Snack, Play
   with it, or Clean up a Mess it's left uncleaned for too long — each
   reachable by keyboard or mouse, with immediate feedback in the stat meters,
-  and unaffected by growing from Baby into Child.
+  and unaffected by growing from Baby into Child. Play also works off Weight
+  gained from Snacking; let it climb too high and the Pet becomes Overfed,
+  which speeds up Happiness decay the same way an uncleaned Mess does.
 - A screen-routed TUI that clears the terminal on entry and restores it on exit.
 - A hand-authored ASCII wordmark with a one-pass shine sweep, a wandering
   animated Character, and a pulsing begin prompt — all on a deterministic,

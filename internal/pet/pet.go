@@ -25,10 +25,18 @@ const (
 	MaxStat = 4
 
 	// BaseWeight is the Pet's starting Weight, set once at birth by New.
-	// Weight is fixed for now — nothing changes it afterwards — but it
-	// stays a Stat in its own right, because a later feature makes it
-	// dynamic. Don't "fix" the fact that it never moves.
+	// Snack and Play move it up and down from there; BaseWeight also floors
+	// how low Play can ever bring it. Unlike Hunger and Happiness, Weight
+	// never Decays over elapsed time — it only ever changes as the direct
+	// result of a Care action.
 	BaseWeight = 2
+
+	// OverfedThreshold is the Weight at or above which a Pet is Overfed,
+	// accelerating Happiness decay the same way a Mess does. Set three
+	// Snacks' worth above BaseWeight — enough headroom that the first Snack
+	// or two isn't punished, mirroring the grace window MessInterval already
+	// gives before a Mess appears.
+	OverfedThreshold = BaseWeight + 3
 
 	// EggDuration is how long the Pet stays an Egg before it Hatches.
 	// Deliberately short — tens of seconds, not hours — to give the player
@@ -58,10 +66,13 @@ const (
 	// that a freshly-hatched Baby isn't immediately messy, short enough that a
 	// player who ignores it for a while sees the consequence.
 	MessInterval = 5 * time.Minute
-	// MessHappinessDecayInterval is the (shorter) HappinessDecayInterval
-	// applied while the Pet HasMess — Happiness Decays twice as fast, so
-	// neglecting a Mess has a real, visible cost.
-	MessHappinessDecayInterval = HappinessDecayInterval / 2
+	// AcceleratedHappinessDecayInterval is the (shorter) HappinessDecayInterval
+	// applied while the Pet HasMess or is Overfed — Happiness Decays twice as
+	// fast under either cause, so neglecting either has a real, visible cost.
+	// The two causes share one rate rather than each defining their own: when
+	// both apply at once, Happiness still decays at this single rate, not an
+	// even faster combined one.
+	AcceleratedHappinessDecayInterval = HappinessDecayInterval / 2
 )
 
 // Pet is the creature the player raises.
@@ -88,8 +99,9 @@ type Pet struct {
 	Hunger int
 	// Happiness ranges 0 (unhappy) .. MaxStat (happy).
 	Happiness int
-	// Weight is set once at birth to BaseWeight. Fixed for now; a later
-	// feature makes it dynamic.
+	// Weight starts at BaseWeight and moves only via Care actions (Snack
+	// increases it, Play decreases it, floored at BaseWeight) — never from
+	// elapsed time.
 	Weight int
 }
 
@@ -151,6 +163,16 @@ func (p Pet) Age(now time.Time) time.Duration {
 // already applies to CreatedAt — see docs/adr/0006's update note.
 func (p Pet) HasMess(now time.Time) bool {
 	return now.Sub(p.LastCleanedAt) >= MessInterval
+}
+
+// Overfed reports whether the Pet's Weight has reached OverfedThreshold.
+// Derived purely from the already-stored Weight value — the same
+// derive-don't-store reasoning HasMess and Stage already apply — so there is
+// nothing here that could drift out of sync, since Overfed carries no state
+// of its own. Unlike HasMess, it takes no now: Weight isn't time-driven, so
+// there's nothing to derive it against.
+func (p Pet) Overfed() bool {
+	return p.Weight >= OverfedThreshold
 }
 
 // withLoadDefaults normalises a Pet freshly unmarshalled from a save file

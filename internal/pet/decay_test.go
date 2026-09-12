@@ -90,7 +90,7 @@ func TestAdvanceAccumulatesAcrossRepeatedShortCalls(t *testing.T) {
 // recomputed from the stale anchor and re-subtracted on every subsequent
 // Beat until Hunger (the slower stat once messy) finally caught up to its
 // own first step — collapsing Happiness to 0 far faster than
-// MessHappinessDecayInterval intends.
+// AcceleratedHappinessDecayInterval intends.
 func TestAdvanceAccumulatesCorrectlyAcrossRepeatedShortCallsWhileMessy(t *testing.T) {
 	t.Parallel()
 
@@ -105,7 +105,7 @@ func TestAdvanceAccumulatesCorrectlyAcrossRepeatedShortCallsWhileMessy(t *testin
 		p = p.Advance(now)
 	}
 
-	wantSteps := int(3 * time.Minute / pet.MessHappinessDecayInterval)
+	wantSteps := int(3 * time.Minute / pet.AcceleratedHappinessDecayInterval)
 	require.Equal(t, 2, wantSteps, "sanity check on the expected step count")
 	assert.Equal(t, pet.MaxStat-wantSteps, p.Happiness)
 }
@@ -128,7 +128,7 @@ func TestAdvanceDecaysHappinessFasterWithAMess(t *testing.T) {
 	t.Parallel()
 
 	born := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	elapsed := pet.HappinessDecayInterval + pet.MessHappinessDecayInterval
+	elapsed := pet.HappinessDecayInterval + pet.AcceleratedHappinessDecayInterval
 
 	clean := pet.New(born).Advance(born.Add(elapsed))
 
@@ -153,11 +153,51 @@ func TestAdvancePicksTheMessRateAsOfNow(t *testing.T) {
 	// The window [born, now] straddles the Mess boundary (MessInterval after
 	// born), but the Pet HasMess by the end of it, so the whole window should
 	// decay Happiness at the faster, messy rate.
-	now := born.Add(pet.MessInterval + pet.MessHappinessDecayInterval)
+	now := born.Add(pet.MessInterval + pet.AcceleratedHappinessDecayInterval)
 	advanced := p.Advance(now)
 
-	wantSteps := int((pet.MessInterval + pet.MessHappinessDecayInterval) / pet.MessHappinessDecayInterval)
+	wantSteps := int((pet.MessInterval + pet.AcceleratedHappinessDecayInterval) / pet.AcceleratedHappinessDecayInterval)
 	assert.Equal(t, pet.MaxStat-wantSteps, advanced.Happiness)
+}
+
+// TestAdvanceDecaysHappinessFasterWhenOverfed mirrors
+// TestAdvanceDecaysHappinessFasterWithAMess for Overfed instead of Mess.
+func TestAdvanceDecaysHappinessFasterWhenOverfed(t *testing.T) {
+	t.Parallel()
+
+	born := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	elapsed := pet.HappinessDecayInterval + pet.AcceleratedHappinessDecayInterval
+
+	notOverfed := pet.New(born).Advance(born.Add(elapsed))
+
+	overfedStart := pet.New(born)
+	overfedStart.Weight = pet.OverfedThreshold
+	overfed := overfedStart.Advance(born.Add(elapsed))
+
+	assert.Less(t, overfed.Happiness, notOverfed.Happiness,
+		"an Overfed Pet should lose more Happiness over the same elapsed time")
+}
+
+// TestAdvanceDoesNotCompoundMessAndOverfed proves a Pet that is both Messy
+// and Overfed at once decays Happiness at the same single accelerated rate
+// as either condition alone, not a faster combined one.
+func TestAdvanceDoesNotCompoundMessAndOverfed(t *testing.T) {
+	t.Parallel()
+
+	born := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	elapsed := pet.HappinessDecayInterval + pet.AcceleratedHappinessDecayInterval
+
+	messyOnly := pet.New(born)
+	messyOnly.LastCleanedAt = born.Add(-pet.MessInterval)
+	messyAdvanced := messyOnly.Advance(born.Add(elapsed))
+
+	both := pet.New(born)
+	both.LastCleanedAt = born.Add(-pet.MessInterval)
+	both.Weight = pet.OverfedThreshold
+	bothAdvanced := both.Advance(born.Add(elapsed))
+
+	assert.Equal(t, messyAdvanced.Happiness, bothAdvanced.Happiness,
+		"Messy+Overfed together should decay Happiness at the same rate as Messy alone, not faster")
 }
 
 func TestAdvanceHungerAndHappinessNeverGoNegative(t *testing.T) {
