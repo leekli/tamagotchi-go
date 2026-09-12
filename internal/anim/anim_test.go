@@ -87,6 +87,35 @@ func TestBobCyclesThroughFlatUpFlatDown(t *testing.T) {
 	assert.Equal(t, []int{0, -1, 0, 1, 0, -1, 0, 1}, got)
 }
 
+func TestCycleSelectsFrameIndexByStep(t *testing.T) {
+	t.Parallel()
+
+	const framesPerStep = 8
+	const numFrames = 2
+	got := make([]int, 8)
+	for f := 0; f < 8; f++ {
+		got[f] = anim.Cycle(f*framesPerStep, framesPerStep, numFrames)
+	}
+	assert.Equal(t, []int{0, 1, 0, 1, 0, 1, 0, 1}, got)
+}
+
+func TestCycleHoldsTheSameIndexWithinAStep(t *testing.T) {
+	t.Parallel()
+
+	const framesPerStep = 4
+	const numFrames = 3
+	for frame := 0; frame < framesPerStep; frame++ {
+		assert.Equal(t, 0, anim.Cycle(frame, framesPerStep, numFrames))
+	}
+}
+
+func TestCycleWithASingleFrameAlwaysReturnsZero(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, 0, anim.Cycle(0, 4, 1))
+	assert.Equal(t, 0, anim.Cycle(100, 4, 1))
+}
+
 func TestPulseIsASmoothRaisedCosine(t *testing.T) {
 	t.Parallel()
 

@@ -48,7 +48,7 @@ const (
 
 // babyPose returns the Baby's current idle pose for frame.
 func babyPose(frame int) []string {
-	return babyFrames[(frame/babyPoseFramesPerStep)%len(babyFrames)]
+	return babyFrames[anim.Cycle(frame, babyPoseFramesPerStep, len(babyFrames))]
 }
 
 // hatchedBob returns the vertical bob offset for frame shared by every
