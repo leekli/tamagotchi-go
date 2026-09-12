@@ -97,3 +97,37 @@ func TestAcceptance_UncleanedMessAcceleratesHappinessDecay(t *testing.T) {
 		assert.Less(t, messy.Happiness, clean.Happiness)
 	})
 }
+
+// TestAcceptance_OverfedRecoveryLoop proves the whole Weight feedback loop
+// end to end: Snack can push a Pet into Overfed, Overfed has the same
+// accelerated-decay consequence as an uncleaned Mess, and Play is the way
+// back out of it.
+func TestAcceptance_OverfedRecoveryLoop(t *testing.T) {
+	t.Parallel()
+
+	t.Run("given a Pet becomes Overfed via repeated Snacks, when time passes, then Happiness decays faster; and once Play brings Weight back under the threshold, decay returns to normal", func(t *testing.T) {
+		elapsed := pet.HappinessDecayInterval + pet.AcceleratedHappinessDecayInterval
+
+		notOverfed := pet.New(born).Advance(born.Add(elapsed))
+
+		overfedStart := pet.New(born)
+		for overfedStart.Weight < pet.OverfedThreshold {
+			overfedStart = overfedStart.Feed(pet.Snack)
+		}
+		require.True(t, overfedStart.Overfed(), "should be Overfed after enough Snacks")
+
+		overfed := overfedStart.Advance(born.Add(elapsed))
+		assert.Less(t, overfed.Happiness, notOverfed.Happiness,
+			"an Overfed Pet should lose more Happiness over the same elapsed time")
+
+		recovered := overfedStart
+		for recovered.Overfed() {
+			recovered = recovered.Play()
+		}
+		require.False(t, recovered.Overfed(), "enough Play should resolve Overfed")
+
+		recoveredAdvanced := recovered.Advance(born.Add(elapsed))
+		assert.Equal(t, notOverfed.Happiness, recoveredAdvanced.Happiness,
+			"once Overfed is resolved, Happiness should decay at the normal rate again")
+	})
+}

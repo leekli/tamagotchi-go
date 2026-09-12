@@ -103,8 +103,9 @@ _Avoid_: spawn, level up
 
 **Stat**:
 One of the Pet's numeric attributes: Hunger, Happiness, or Weight. Hunger and
-Happiness Decay over time; Weight is fixed at birth for now — a later feature
-makes it dynamic.
+Happiness Decay over time; Weight never Decays — it only ever changes as the
+direct result of a Care action (Snack increases it, Play decreases it, down
+to a floor of its birth weight).
 _Avoid_: meter (that is the pip display), stat point
 
 **Decay**:
@@ -124,6 +125,15 @@ Clean Care action removes it. Deliberately not called "poop" — keep the term
 politely abstract in code, comments, and UI copy; the small pile glyph shown
 on screen can still read as one.
 _Avoid_: poop
+
+**Overfed**:
+The state a Pet enters once its Weight reaches a threshold above its birth
+weight, from choosing Snack too often. While present it depresses Happiness
+Decay further, the same way Mess does — the two share one accelerated rate
+rather than compounding when both apply at once. The Play Care action is
+what brings Weight back down and resolves it. Deliberately named for the
+cause (too much Snack), not the Pet's body.
+_Avoid_: fat, chubby, overweight
 
 **Care action**:
 A player-triggered command on the Next Screen that changes the Pet's Stats:
