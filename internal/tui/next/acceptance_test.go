@@ -86,7 +86,7 @@ func TestAcceptance_UncleanedMessAcceleratesHappinessDecay(t *testing.T) {
 	t.Parallel()
 
 	t.Run("given a Mess is present and uncleaned, when time passes, then Happiness falls faster than it would without one", func(t *testing.T) {
-		elapsed := pet.HappinessDecayInterval + pet.MessHappinessDecayInterval
+		elapsed := pet.HappinessDecayInterval + pet.AcceleratedHappinessDecayInterval
 
 		clean := pet.New(born).Advance(born.Add(elapsed))
 

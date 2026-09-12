@@ -99,6 +99,33 @@ func TestStageBeforeAtAndAfterBabyDuration(t *testing.T) {
 	}
 }
 
+func TestOverfedBeforeAtAndAfterThreshold(t *testing.T) {
+	t.Parallel()
+
+	born := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	tests := map[string]struct {
+		weight int
+		want   bool
+	}{
+		"just below threshold": {pet.OverfedThreshold - 1, false},
+		"exactly at threshold": {pet.OverfedThreshold, true},
+		"well above threshold": {pet.OverfedThreshold + 10, true},
+	}
+
+	for name, tt := range tests {
+		tt := tt
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			p := pet.New(born)
+			p.Weight = tt.weight
+
+			assert.Equal(t, tt.want, p.Overfed())
+		})
+	}
+}
+
 func TestStageHatched(t *testing.T) {
 	t.Parallel()
 
