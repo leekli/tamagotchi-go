@@ -25,9 +25,10 @@ const (
 	MaxStat = 4
 
 	// BaseWeight is the Pet's starting Weight, set once at birth by New.
-	// Weight is fixed for now — nothing changes it afterwards — but it
-	// stays a Stat in its own right, because a later feature makes it
-	// dynamic. Don't "fix" the fact that it never moves.
+	// Snack and Play move it up and down from there; BaseWeight also floors
+	// how low Play can ever bring it. Unlike Hunger and Happiness, Weight
+	// never Decays over elapsed time — it only ever changes as the direct
+	// result of a Care action.
 	BaseWeight = 2
 
 	// EggDuration is how long the Pet stays an Egg before it Hatches.

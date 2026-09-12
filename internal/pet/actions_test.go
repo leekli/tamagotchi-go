@@ -89,10 +89,13 @@ func TestPlay(t *testing.T) {
 	tests := map[string]struct {
 		startHappiness int
 		wantHappiness  int
+		startWeight    int
+		wantWeight     int
 	}{
-		"from zero":      {0, 1},
-		"below the cap":  {pet.MaxStat - 1, pet.MaxStat},
-		"already at cap": {pet.MaxStat, pet.MaxStat},
+		"from zero happiness":      {0, 1, pet.BaseWeight + 2, pet.BaseWeight + 1},
+		"below the happiness cap":  {pet.MaxStat - 1, pet.MaxStat, pet.BaseWeight + 2, pet.BaseWeight + 1},
+		"already at happiness cap": {pet.MaxStat, pet.MaxStat, pet.BaseWeight + 2, pet.BaseWeight + 1},
+		"weight already at floor":  {0, 1, pet.BaseWeight, pet.BaseWeight},
 	}
 
 	for name, tt := range tests {
@@ -102,14 +105,14 @@ func TestPlay(t *testing.T) {
 
 			p := pet.New(actionsBorn)
 			p.Happiness = tt.startHappiness
+			p.Weight = tt.startWeight
 			startHunger := p.Hunger
-			startWeight := p.Weight
 
 			played := p.Play()
 
 			assert.Equal(t, tt.wantHappiness, played.Happiness)
 			assert.Equal(t, startHunger, played.Hunger, "Play must not change Hunger")
-			assert.Equal(t, startWeight, played.Weight, "Play must not change Weight")
+			assert.Equal(t, tt.wantWeight, played.Weight)
 		})
 	}
 }

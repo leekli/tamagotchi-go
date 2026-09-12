@@ -31,9 +31,12 @@ func (p Pet) Feed(kind FoodKind) Pet {
 	return p
 }
 
-// Play restores one point of Happiness, capped at MaxStat.
+// Play restores one point of Happiness, capped at MaxStat, and reduces
+// Weight by one point, floored at BaseWeight — a real counterbalance to
+// Snack's Weight cost, so a Care action exists to bring Weight back down.
 func (p Pet) Play() Pet {
 	p.Happiness = min(p.Happiness+1, MaxStat)
+	p.Weight = max(p.Weight-1, BaseWeight)
 	return p
 }
 

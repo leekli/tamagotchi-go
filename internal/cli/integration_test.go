@@ -404,8 +404,10 @@ func TestFullCareLoopKeyboardAndMouseReachTheSameState(t *testing.T) {
 
 	assert.Equal(t, pet.MaxStat, byKeyboard.Happiness)
 	assert.Equal(t, pet.MaxStat, byMouse.Happiness)
-	assert.Equal(t, pet.BaseWeight+1, byKeyboard.Weight)
-	assert.Equal(t, pet.BaseWeight+1, byMouse.Weight)
+	// Snack adds 1 Weight and the subsequent Play removes 1, netting back to
+	// BaseWeight.
+	assert.Equal(t, pet.BaseWeight, byKeyboard.Weight)
+	assert.Equal(t, pet.BaseWeight, byMouse.Weight)
 	assert.False(t, byKeyboard.HasMess(time.Now()))
 	assert.False(t, byMouse.HasMess(time.Now()))
 }
@@ -426,8 +428,10 @@ func TestFullCareLoopKeyboardAndMouseReachTheSameStateAsChild(t *testing.T) {
 
 	assert.Equal(t, pet.MaxStat, byKeyboard.Happiness)
 	assert.Equal(t, pet.MaxStat, byMouse.Happiness)
-	assert.Equal(t, pet.BaseWeight+1, byKeyboard.Weight)
-	assert.Equal(t, pet.BaseWeight+1, byMouse.Weight)
+	// Snack adds 1 Weight and the subsequent Play removes 1, netting back to
+	// BaseWeight.
+	assert.Equal(t, pet.BaseWeight, byKeyboard.Weight)
+	assert.Equal(t, pet.BaseWeight, byMouse.Weight)
 	assert.False(t, byKeyboard.HasMess(time.Now()))
 	assert.False(t, byMouse.HasMess(time.Now()))
 }
