@@ -76,7 +76,8 @@ func TestFeedSnackWeightCapsAtMaxWeight(t *testing.T) {
 	t.Parallel()
 
 	p := pet.New(actionsBorn)
-	for range 100 {
+	// BaseWeight to MaxWeight is 10 Snacks; a few more prove it stays capped.
+	for range 15 {
 		p = p.Feed(pet.Snack)
 	}
 

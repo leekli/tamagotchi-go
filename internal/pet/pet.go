@@ -43,7 +43,7 @@ const (
 	// Hunger at MaxStat. Comfortably above OverfedThreshold so Overfed still
 	// means something well before the hard ceiling, and small enough that
 	// Weight's on-screen display never needs more than two digits.
-	MaxWeight = BaseWeight + 10
+	MaxWeight = OverfedThreshold + 7
 
 	// EggDuration is how long the Pet stays an Egg before it Hatches.
 	// Deliberately short — tens of seconds, not hours — to give the player
@@ -107,8 +107,8 @@ type Pet struct {
 	// Happiness ranges 0 (unhappy) .. MaxStat (happy).
 	Happiness int
 	// Weight starts at BaseWeight and moves only via Care actions (Snack
-	// increases it, Play decreases it, floored at BaseWeight) — never from
-	// elapsed time.
+	// increases it, Play decreases it) between a floor of BaseWeight and a
+	// ceiling of MaxWeight — never from elapsed time.
 	Weight int
 }
 
@@ -199,5 +199,10 @@ func withLoadDefaults(p Pet) Pet {
 		// Happiness Decay was applied up to as well.
 		p.HappinessLastSeenAt = p.LastSeenAt
 	}
+	// A save file written before MaxWeight existed (when Snack's Weight gain
+	// was uncapped) can carry a Weight outside today's valid range. Clamp it
+	// here, at load, rather than leaving it out of range until the next Feed
+	// or Play happens to correct it as a side effect of its own min/max.
+	p.Weight = min(max(p.Weight, BaseWeight), MaxWeight)
 	return p
 }
