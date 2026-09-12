@@ -87,5 +87,13 @@ var bobPattern = [4]int{0, -1, 0, 1}
 // bobPattern every framesPerStep frames. Used for the Welcome Screen's
 // walking Character and the Next Screen's idling Baby.
 func Bob(frame, framesPerStep int) int {
-	return bobPattern[(frame/framesPerStep)%len(bobPattern)]
+	return bobPattern[Cycle(frame, framesPerStep, len(bobPattern))]
+}
+
+// Cycle returns which of numFrames poses is current, advancing one step
+// every framesPerStep frames and wrapping back to 0. Used to pick a pose out
+// of a Screen's own alternating-frame art slice — the same modulo pattern
+// Bob applies to bobPattern, generalised to a caller-supplied frame count.
+func Cycle(frame, framesPerStep, numFrames int) int {
+	return (frame / framesPerStep) % numFrames
 }

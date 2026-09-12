@@ -90,8 +90,8 @@ _Avoid_: Tamagotchi (ambiguous with the application's name), Character, creature
 ### The Pet
 
 **Stage**:
-The Pet's life stage: Egg, Baby, or Child, for now. (Teen/Adult evolution is a
-later feature.) Shown on the Next Screen as a bare-word label beneath the
+The Pet's life stage: Egg, Baby, Child, or Teen, for now. (Adult evolution is
+a later feature.) Shown on the Next Screen as a bare-word label beneath the
 Pet's art.
 _Avoid_: level, form (informal use of "Marutchi form" for the Character is fine)
 
