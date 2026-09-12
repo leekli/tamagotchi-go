@@ -46,6 +46,13 @@ func childScreen(t *testing.T, initial pet.Pet, store pet.Store) tui.Screen {
 	return advanceAnim(t, s, born.Add(pet.EggDuration+pet.BabyDuration), 1)
 }
 
+// teenScreen mirrors childScreen, but grown all the way into a Teen.
+func teenScreen(t *testing.T, initial pet.Pet, store pet.Store) tui.Screen {
+	t.Helper()
+	s := sizedScreen(t, initial, store)
+	return advanceAnim(t, s, born.Add(pet.EggDuration+pet.BabyDuration+pet.ChildDuration), 1)
+}
+
 // fakeStore is an in-memory pet.Store for tests, recording every Save.
 type fakeStore struct {
 	saved   []pet.Pet
@@ -153,6 +160,80 @@ func TestViewShowsChildAfterBabyDuration(t *testing.T) {
 	assert.NotContains(t, view, "( o o)", "Baby art should no longer appear")
 }
 
+func TestViewShowsTeenAfterChildDuration(t *testing.T) {
+	t.Parallel()
+
+	s := sizedScreen(t, pet.New(born), &fakeStore{})
+	s = advanceAnim(t, s, born.Add(pet.EggDuration+pet.BabyDuration), 1)
+	require.Contains(t, stripANSI(s.View()), "( ^  ^)", "should be a Child before ChildDuration has elapsed")
+
+	s = advanceAnim(t, s, born.Add(pet.EggDuration+pet.BabyDuration+pet.ChildDuration), 1)
+	view := stripANSI(s.View())
+	assert.Contains(t, view, "^==^", "Teen art should be shown after ChildDuration has elapsed")
+	assert.NotContains(t, view, "( ^  ^)", "Child art should no longer appear")
+}
+
+func TestTeenWalkCycleAlternatesPoses(t *testing.T) {
+	t.Parallel()
+
+	teenAt := born.Add(pet.EggDuration + pet.BabyDuration + pet.ChildDuration)
+	s := sizedScreen(t, pet.New(born), &fakeStore{})
+
+	var sawRightLimbPose, sawLeftLimbPose bool
+	for i := 0; i < 64; i++ {
+		s = advanceAnim(t, s, teenAt, 1)
+		view := stripANSI(s.View())
+		if strings.Contains(view, ")>") {
+			sawRightLimbPose = true
+		}
+		if strings.Contains(view, "<(") {
+			sawLeftLimbPose = true
+		}
+	}
+	assert.True(t, sawRightLimbPose, "Teen's walk cycle should show its right-limb pose at some point")
+	assert.True(t, sawLeftLimbPose, "Teen's walk cycle should show its left-limb pose at some point")
+}
+
+func TestIconBarAndCareActionsRemainAvailableForTeen(t *testing.T) {
+	t.Parallel()
+
+	p := pet.New(born)
+	p.Happiness = 1
+	s := teenScreen(t, p, &fakeStore{})
+
+	view := stripANSI(s.View())
+	assert.Contains(t, view, "Feed")
+	assert.Contains(t, view, "Play")
+	assert.Contains(t, view, "Clean")
+
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
+	ns, ok := s.(*next.Screen)
+	require.True(t, ok)
+	assert.Equal(t, 2, ns.Pet().Happiness, "Play should still work once the Pet is a Teen")
+}
+
+func TestMouseClickActivatesIconsForTeen(t *testing.T) {
+	t.Parallel()
+
+	p := pet.New(born)
+	p.Happiness = 1
+	s := teenScreen(t, p, &fakeStore{})
+
+	s = clickZone(t, s, next.PlayZoneID)
+
+	ns, ok := s.(*next.Screen)
+	require.True(t, ok)
+	assert.Equal(t, 2, ns.Pet().Happiness, "clicking Play should still work once the Pet is a Teen")
+}
+
+func TestShortHelpAdvertisesIconBarHintsForTeenToo(t *testing.T) {
+	t.Parallel()
+
+	teen, ok := teenScreen(t, pet.New(born), &fakeStore{}).(tui.HelpProvider)
+	require.True(t, ok)
+	assert.NotEmpty(t, teen.ShortHelp())
+}
+
 func TestIconBarAndCareActionsRemainAvailableForChild(t *testing.T) {
 	t.Parallel()
 
@@ -193,7 +274,7 @@ func TestShortHelpAdvertisesIconBarHintsForChildToo(t *testing.T) {
 	assert.NotEmpty(t, child.ShortHelp())
 }
 
-func TestViewShowsTheStageLabelForEggBabyAndChild(t *testing.T) {
+func TestViewShowsTheStageLabelForEggBabyChildAndTeen(t *testing.T) {
 	t.Parallel()
 
 	s := sizedScreen(t, pet.New(born), &fakeStore{})
@@ -204,6 +285,9 @@ func TestViewShowsTheStageLabelForEggBabyAndChild(t *testing.T) {
 
 	s = advanceAnim(t, s, born.Add(pet.EggDuration+pet.BabyDuration), 1)
 	assert.Contains(t, stripANSI(s.View()), "Child", "should show the Child label once grown")
+
+	s = advanceAnim(t, s, born.Add(pet.EggDuration+pet.BabyDuration+pet.ChildDuration), 1)
+	assert.Contains(t, stripANSI(s.View()), "Teen", "should show the Teen label once grown further")
 }
 
 func TestHungerAndHappinessMetersShowTheRightPips(t *testing.T) {

@@ -29,6 +29,14 @@ var babyFrames = [2][]string{
 // read as visually settled next to Baby's fidgeting.
 var childArt = art.MustLoad("child.txt")
 
+// teenFrames are the Teen-stage's two idle poses: a visibly bigger, more
+// grown-up-looking walk cycle than Child's single static pose, so a Teen
+// reads as a further step up in liveliness rather than a repeat of Child.
+var teenFrames = [2][]string{
+	art.MustLoad("teen-walk-1.txt"),
+	art.MustLoad("teen-walk-2.txt"),
+}
+
 // messArt is the small pile glyph shown while the Pet HasMess — a status
 // indicator, not a set piece, so it's kept tiny.
 var messArt = art.MustLoad("mess.txt")
@@ -39,16 +47,22 @@ const (
 	// hatching, growing, or bobbing never shifts the rest of the stack.
 	artBoxHeight = 5
 
-	// bobFramesPerStep and babyPoseFramesPerStep pace a hatched Pet's idle
-	// motion: a gentle bob (Baby and Child both) and, for Baby only, an
-	// occasional pose change — not a walk cycle, which is a later feature.
+	// bobFramesPerStep paces the gentle idle bob shared by every hatched
+	// Stage. babyPoseFramesPerStep and teenPoseFramesPerStep separately pace
+	// each Stage's own pose-alternation walk cycle.
 	bobFramesPerStep      = 4
 	babyPoseFramesPerStep = 8
+	teenPoseFramesPerStep = 8
 )
 
 // babyPose returns the Baby's current idle pose for frame.
 func babyPose(frame int) []string {
 	return babyFrames[anim.Cycle(frame, babyPoseFramesPerStep, len(babyFrames))]
+}
+
+// teenPose returns the Teen's current idle pose for frame.
+func teenPose(frame int) []string {
+	return teenFrames[anim.Cycle(frame, teenPoseFramesPerStep, len(teenFrames))]
 }
 
 // hatchedBob returns the vertical bob offset for frame shared by every
