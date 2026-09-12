@@ -104,8 +104,8 @@ _Avoid_: spawn, level up
 **Stat**:
 One of the Pet's numeric attributes: Hunger, Happiness, or Weight. Hunger and
 Happiness Decay over time; Weight never Decays — it only ever changes as the
-direct result of a Care action (Snack increases it, Play decreases it, down
-to a floor of its birth weight).
+direct result of a Care action (Snack increases it, Play decreases it), between
+a floor of its birth weight and a fixed maximum.
 _Avoid_: meter (that is the pip display), stat point
 
 **Decay**:

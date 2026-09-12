@@ -38,6 +38,13 @@ const (
 	// gives before a Mess appears.
 	OverfedThreshold = BaseWeight + 3
 
+	// MaxWeight is the highest Weight can ever reach — Snack simply stops
+	// increasing it there, the same way Feed(Meal) already stops increasing
+	// Hunger at MaxStat. Comfortably above OverfedThreshold so Overfed still
+	// means something well before the hard ceiling, and small enough that
+	// Weight's on-screen display never needs more than two digits.
+	MaxWeight = BaseWeight + 10
+
 	// EggDuration is how long the Pet stays an Egg before it Hatches.
 	// Deliberately short — tens of seconds, not hours — to give the player
 	// an early "it's alive" moment on first launch, mirroring the original
