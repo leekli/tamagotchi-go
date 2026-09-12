@@ -159,6 +159,7 @@ func (s *Screen) View() string {
 
 	rows := []string{
 		renderArtBox(frameArt, bob, s.styles.art),
+		renderStageLabel(stage, s.styles.stageLabel),
 		messLine,
 		"",
 		renderMeter("Hunger", s.pet.Hunger, s.styles.meter),

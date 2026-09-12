@@ -193,6 +193,19 @@ func TestShortHelpAdvertisesIconBarHintsForChildToo(t *testing.T) {
 	assert.NotEmpty(t, child.ShortHelp())
 }
 
+func TestViewShowsTheStageLabelForEggBabyAndChild(t *testing.T) {
+	t.Parallel()
+
+	s := sizedScreen(t, pet.New(born), &fakeStore{})
+	assert.Contains(t, stripANSI(s.View()), "Egg", "should show the Egg label before Hatch")
+
+	s = advanceAnim(t, s, born.Add(pet.EggDuration), 1)
+	assert.Contains(t, stripANSI(s.View()), "Baby", "should show the Baby label after Hatch")
+
+	s = advanceAnim(t, s, born.Add(pet.EggDuration+pet.BabyDuration), 1)
+	assert.Contains(t, stripANSI(s.View()), "Child", "should show the Child label once grown")
+}
+
 func TestHungerAndHappinessMetersShowTheRightPips(t *testing.T) {
 	t.Parallel()
 

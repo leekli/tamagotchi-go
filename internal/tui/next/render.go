@@ -73,6 +73,13 @@ func renderArtBox(frameArt []string, bob int, style lipgloss.Style) string {
 	return style.Render(strings.Join(lines, "\n"))
 }
 
+// renderStageLabel draws the Pet's current Stage as a bare word (e.g.
+// "Baby"), so a player doesn't have to infer it from the art alone. Shown
+// for every Stage, not just Child.
+func renderStageLabel(stage pet.Stage, style lipgloss.Style) string {
+	return style.Render(stage.String())
+}
+
 // renderMeter draws label as a four-pip meter, e.g. "Hunger    [**--]".
 func renderMeter(label string, value int, style lipgloss.Style) string {
 	pips := strings.Repeat("*", value) + strings.Repeat("-", pet.MaxStat-value)
