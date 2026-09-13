@@ -37,6 +37,15 @@ var teenFrames = [][]string{
 	art.MustLoad("teen-walk-2.txt"),
 }
 
+// adultFrames are the Adult-stage's two idle poses: bulkier and more
+// detailed than Teen's, within the same three-row art box, continuing the
+// same Marutchi-lineage silhouette rather than a new design — a Pet reads as
+// one creature growing up, not changing species.
+var adultFrames = [][]string{
+	art.MustLoad("adult-walk-1.txt"),
+	art.MustLoad("adult-walk-2.txt"),
+}
+
 // messArt is the small pile glyph shown while the Pet HasMess — a status
 // indicator, not a set piece, so it's kept tiny.
 var messArt = art.MustLoad("mess.txt")
@@ -48,11 +57,13 @@ const (
 	artBoxHeight = 5
 
 	// bobFramesPerStep paces the gentle idle bob shared by every hatched
-	// Stage. babyPoseFramesPerStep and teenPoseFramesPerStep separately pace
-	// each Stage's own pose-alternation walk cycle.
-	bobFramesPerStep      = 4
-	babyPoseFramesPerStep = 8
-	teenPoseFramesPerStep = 8
+	// Stage. babyPoseFramesPerStep, teenPoseFramesPerStep, and
+	// adultPoseFramesPerStep separately pace each Stage's own
+	// pose-alternation walk cycle.
+	bobFramesPerStep       = 4
+	babyPoseFramesPerStep  = 8
+	teenPoseFramesPerStep  = 8
+	adultPoseFramesPerStep = 8
 )
 
 // alternatingPose returns the current pose out of frames for frame, advancing
@@ -64,7 +75,7 @@ func alternatingPose(frames [][]string, framesPerStep, frame int) []string {
 }
 
 // hatchedBob returns the vertical bob offset for frame shared by every
-// hatched Stage (Baby, Child, and Teen), the same anim.Bob pattern
+// hatched Stage (Baby, Child, Teen, and Adult), the same anim.Bob pattern
 // welcome/character.go uses for the Character's walk bob.
 func hatchedBob(frame int) int {
 	return anim.Bob(frame, bobFramesPerStep)

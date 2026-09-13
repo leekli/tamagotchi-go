@@ -112,7 +112,32 @@ func TestStageBeforeAtAndAfterChildDuration(t *testing.T) {
 		"just grew into Child":          {born.Add(pet.EggDuration + pet.BabyDuration), pet.StageChild},
 		"just before growing into Teen": {born.Add(pet.EggDuration + pet.BabyDuration + pet.ChildDuration - time.Nanosecond), pet.StageChild},
 		"exactly at growing into Teen":  {born.Add(pet.EggDuration + pet.BabyDuration + pet.ChildDuration), pet.StageTeen},
-		"well after growing into Teen":  {born.Add(pet.EggDuration + pet.BabyDuration + pet.ChildDuration + time.Hour), pet.StageTeen},
+		"well after growing into Teen":  {born.Add(pet.EggDuration + pet.BabyDuration + pet.ChildDuration + time.Minute), pet.StageTeen},
+	}
+
+	for name, tt := range tests {
+		tt := tt
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, p.Stage(tt.now))
+		})
+	}
+}
+
+func TestStageBeforeAtAndAfterTeenDuration(t *testing.T) {
+	t.Parallel()
+
+	born := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	p := pet.New(born)
+
+	tests := map[string]struct {
+		now  time.Time
+		want pet.Stage
+	}{
+		"just grew into Teen":            {born.Add(pet.EggDuration + pet.BabyDuration + pet.ChildDuration), pet.StageTeen},
+		"just before growing into Adult": {born.Add(pet.EggDuration + pet.BabyDuration + pet.ChildDuration + pet.TeenDuration - time.Nanosecond), pet.StageTeen},
+		"exactly at growing into Adult":  {born.Add(pet.EggDuration + pet.BabyDuration + pet.ChildDuration + pet.TeenDuration), pet.StageAdult},
+		"well after growing into Adult":  {born.Add(pet.EggDuration + pet.BabyDuration + pet.ChildDuration + pet.TeenDuration + time.Hour), pet.StageAdult},
 	}
 
 	for name, tt := range tests {
