@@ -90,9 +90,10 @@ _Avoid_: Tamagotchi (ambiguous with the application's name), Character, creature
 ### The Pet
 
 **Stage**:
-The Pet's life stage: Egg, Baby, Child, Teen, or Adult. Adult is the last
-Stage — the Pet stops growing further once it reaches it. Shown on the Next
-Screen as a bare-word label beneath the Pet's art.
+The Pet's life stage: Egg, Baby, Child, Teen, Adult, or Death. Adult is the
+last Stage the Pet grows into; Death follows it automatically after a fixed
+interval, the same way every earlier Stage transition already works. Shown
+on the Next Screen as a bare-word label beneath the Pet's art.
 _Avoid_: level, form (informal use of "Marutchi form" for the Character is fine)
 
 **Hatch**:
@@ -142,9 +143,26 @@ _Avoid_: command, verb
 
 **Icon bar**:
 The row of selectable Care-action icons the Next Screen shows once the Pet
-has hatched into a Baby, navigated by keyboard or mouse.
+has hatched into a Baby, navigated by keyboard or mouse. It disappears again
+once the Pet has reached Death.
 _Avoid_: menu bar, toolbar
 
 **Meal** / **Snack**:
 The two choices offered by the Feed Care action. Meal restores Hunger with no
 side effect; Snack restores Happiness but adds Weight.
+
+**Death**:
+The terminal Stage a Pet reaches after living as an Adult for a fixed
+real-time interval. Once reached, Care actions and their Icon bar are no
+longer available, and Mess no longer shows even if present — the only
+action left to the player is a Restart.
+_Avoid_: dead, dying, game over
+
+**Restart**:
+The player-triggered action, available only once the Pet has reached Death,
+that discards it and creates a brand new Egg in its place — a full
+replacement of the single Save file's contents, not a partial reset of any
+one Stat. Distinct from Hatch: Hatch is the automatic, time-driven
+Egg→Baby transition; Restart is the one manual action that produces a fresh
+Egg to begin with.
+_Avoid_: reset, retry, new game

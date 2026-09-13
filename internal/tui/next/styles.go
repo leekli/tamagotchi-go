@@ -17,6 +17,13 @@ type styles struct {
 	icon         lipgloss.Style // an unselected icon-bar entry
 	iconSelected lipgloss.Style // the currently selected icon-bar entry
 	flourish     lipgloss.Style // a Care action's text feedback
+
+	// restartDim/Mid/Hi are the restart prompt's three pulse levels, shown
+	// once the Pet has reached Death — the same dim -> mid -> bright
+	// progression the Welcome Screen's begin prompt already uses.
+	restartDim lipgloss.Style
+	restartMid lipgloss.Style
+	restartHi  lipgloss.Style
 }
 
 func newStyles(p tui.Palette) styles {
@@ -29,5 +36,8 @@ func newStyles(p tui.Palette) styles {
 		icon:         lipgloss.NewStyle().Foreground(p.Dim),
 		iconSelected: lipgloss.NewStyle().Foreground(p.Accent).Bold(true),
 		flourish:     lipgloss.NewStyle().Foreground(p.Highlight),
+		restartDim:   lipgloss.NewStyle().Foreground(p.Dim),
+		restartMid:   lipgloss.NewStyle().Foreground(p.Screen),
+		restartHi:    lipgloss.NewStyle().Foreground(p.Highlight).Bold(true),
 	}
 }

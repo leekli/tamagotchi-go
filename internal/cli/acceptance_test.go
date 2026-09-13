@@ -147,6 +147,55 @@ func TestAcceptance_GrowsIntoAdultAfterTeenDuration(t *testing.T) {
 	})
 }
 
+func TestAcceptance_DiesAfterAdultDuration(t *testing.T) {
+	t.Run("given the Pet is an Adult when AdultDuration has elapsed then it has died", func(t *testing.T) {
+		born := time.Now()
+		store := pet.NewFileStore(filepath.Join(t.TempDir(), "save.json"))
+		screen, _ := next.New(pet.New(born), store).Update(tea.WindowSizeMsg{Width: 80, Height: 23})
+
+		// Not real time: EggDuration+BabyDuration+ChildDuration+TeenDuration
+		// has elapsed relative to born, fed through the same anim.TickMsg
+		// the Screen tracks "now" from — no sleeping.
+		screen, _ = screen.Update(anim.TickMsg{Time: born.Add(pet.EggDuration + pet.BabyDuration + pet.ChildDuration + pet.TeenDuration)})
+		ns, ok := screen.(*next.Screen)
+		require.True(t, ok)
+		require.Equal(t, pet.StageAdult, ns.Pet().Stage(born.Add(pet.EggDuration+pet.BabyDuration+pet.ChildDuration+pet.TeenDuration)))
+
+		// Likewise not real time: AdultDuration has elapsed on top of that.
+		screen, _ = screen.Update(anim.TickMsg{Time: born.Add(pet.EggDuration + pet.BabyDuration + pet.ChildDuration + pet.TeenDuration + pet.AdultDuration)})
+
+		ns, ok = screen.(*next.Screen)
+		require.True(t, ok)
+		assert.Equal(t, pet.StageDeath, ns.Pet().Stage(born.Add(pet.EggDuration+pet.BabyDuration+pet.ChildDuration+pet.TeenDuration+pet.AdultDuration)))
+	})
+}
+
+func TestAcceptance_RestartSavesTheFreshEggImmediately(t *testing.T) {
+	t.Run("given the Pet has died when the player restarts then the fresh Egg is saved immediately, not just on the next periodic save", func(t *testing.T) {
+		born := time.Now()
+		store := pet.NewFileStore(filepath.Join(t.TempDir(), "save.json"))
+		screen, _ := next.New(pet.New(born), store).Update(tea.WindowSizeMsg{Width: 80, Height: 23})
+
+		deathAt := born.Add(pet.EggDuration + pet.BabyDuration + pet.ChildDuration + pet.TeenDuration + pet.AdultDuration)
+		screen, _ = screen.Update(anim.TickMsg{Time: deathAt})
+		ns, ok := screen.(*next.Screen)
+		require.True(t, ok)
+		require.Equal(t, pet.StageDeath, ns.Pet().Stage(deathAt))
+
+		// Restart, then run its returned command directly rather than
+		// quitting — simulating "quit right after restarting" without
+		// needing a full teatest program for this check.
+		_, cmd := screen.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		require.NotNil(t, cmd, "restart should return a save command")
+		cmd()
+
+		loaded, ok, err := store.Load()
+		require.NoError(t, err)
+		require.True(t, ok, "the restarted Pet should have been saved immediately")
+		assert.Equal(t, pet.StageEgg, loaded.Stage(deathAt), "the saved Pet should be a fresh Egg, not the one that just died")
+	})
+}
+
 func TestAcceptance_QuitSavesTheCurrentPet(t *testing.T) {
 	t.Run("given the game is running when the player quits then the current Pet state is saved", func(t *testing.T) {
 		store := pet.NewFileStore(filepath.Join(t.TempDir(), "save.json"))

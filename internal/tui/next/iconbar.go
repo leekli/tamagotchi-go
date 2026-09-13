@@ -84,19 +84,26 @@ type keyMap struct {
 	Clean key.Binding
 	Meal  key.Binding
 	Snack key.Binding
+
+	// Restart is only ever matched once the Pet has reached Death — see
+	// updateDeathKey. It shares Enter's physical key with the icon bar's own
+	// Enter binding without conflict, since the two are never live at the
+	// same time.
+	Restart key.Binding
 }
 
 func defaultKeyMap() keyMap {
 	return keyMap{
-		Left:  key.NewBinding(key.WithKeys("left", "h"), key.WithHelp("←/→", "select")),
-		Right: key.NewBinding(key.WithKeys("right", "l")),
-		Enter: key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "activate")),
-		Esc:   key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")),
-		Feed:  key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "feed")),
-		Play:  key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "play")),
-		Clean: key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "clean")),
-		Meal:  key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "meal")),
-		Snack: key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "snack")),
+		Left:    key.NewBinding(key.WithKeys("left", "h"), key.WithHelp("←/→", "select")),
+		Right:   key.NewBinding(key.WithKeys("right", "l")),
+		Enter:   key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "activate")),
+		Esc:     key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")),
+		Feed:    key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "feed")),
+		Play:    key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "play")),
+		Clean:   key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "clean")),
+		Meal:    key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "meal")),
+		Snack:   key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "snack")),
+		Restart: key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "hatch a new Egg")),
 	}
 }
 
@@ -104,10 +111,13 @@ func defaultKeyMap() keyMap {
 func (s *Screen) Selected() int { return s.selected }
 
 // updateIconBarKey handles a key press against whichever menu is currently
-// open. It is a no-op before the Pet has hatched — there is nothing to act
-// on yet.
+// open. It is a no-op before the Pet has hatched, or once Care actions are
+// no longer available — there is nothing to act on yet in either case. In
+// practice Update already routes Death to updateDeathKey before reaching
+// here, but this guard uses CareAvailable rather than Hatched anyway, so it
+// stays correct on its own terms regardless of how it's reached.
 func (s *Screen) updateIconBarKey(msg tea.KeyMsg) (tui.Screen, tea.Cmd) {
-	if !s.pet.Stage(s.now).Hatched() {
+	if !s.pet.Stage(s.now).CareAvailable() {
 		return s, nil
 	}
 	if s.menu == menuFeedChoice {
@@ -163,9 +173,9 @@ func (s *Screen) updateFeedChoiceKey(msg tea.KeyMsg) (tui.Screen, tea.Cmd) {
 
 // updateIconBarMouse handles a mouse message against whichever menu's click
 // zones are currently live. Like updateIconBarKey, it is a no-op before the
-// Pet has hatched.
+// Pet has hatched, or once Care actions are no longer available.
 func (s *Screen) updateIconBarMouse(msg tea.MouseMsg) (tui.Screen, tea.Cmd) {
-	if !s.pet.Stage(s.now).Hatched() {
+	if !s.pet.Stage(s.now).CareAvailable() {
 		return s, nil
 	}
 	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
@@ -231,10 +241,16 @@ func wrap(i, delta, n int) int {
 	return ((i+delta)%n + n) % n
 }
 
-// shortHelp returns the current menu's key hints, or nil before the Pet has
-// hatched — there's nothing to hint at yet.
+// shortHelp returns the current menu's key hints: the restart binding once
+// the Pet has reached Death, the icon bar's own bindings once Care actions
+// are available, or nil before the Pet has hatched — there's nothing to
+// hint at yet either way.
 func (s *Screen) shortHelp() []key.Binding {
-	if !s.pet.Stage(s.now).Hatched() {
+	stage := s.pet.Stage(s.now)
+	if stage == pet.StageDeath {
+		return []key.Binding{s.keys.Restart}
+	}
+	if !stage.CareAvailable() {
 		return nil
 	}
 	// s.keys.Right is deliberately excluded: it carries no help text of its

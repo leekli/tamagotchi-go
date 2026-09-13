@@ -46,6 +46,11 @@ var adultFrames = [][]string{
 	art.MustLoad("adult-walk-2.txt"),
 }
 
+// deathArt is the Death Stage's art: a single static gravestone pose, no
+// bob or animation, the same stillness eggArt uses — a Pet that has died is
+// as inanimate as one that hasn't hatched yet.
+var deathArt = art.MustLoad("gravestone.txt")
+
 // messArt is the small pile glyph shown while the Pet HasMess — a status
 // indicator, not a set piece, so it's kept tiny.
 var messArt = art.MustLoad("mess.txt")

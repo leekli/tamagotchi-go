@@ -60,6 +60,13 @@ func adultScreen(t *testing.T, initial pet.Pet, store pet.Store) tui.Screen {
 	return advanceAnim(t, s, born.Add(pet.EggDuration+pet.BabyDuration+pet.ChildDuration+pet.TeenDuration), 1)
 }
 
+// deathScreen mirrors adultScreen, but grown all the way to Death.
+func deathScreen(t *testing.T, initial pet.Pet, store pet.Store) tui.Screen {
+	t.Helper()
+	s := sizedScreen(t, initial, store)
+	return advanceAnim(t, s, born.Add(pet.EggDuration+pet.BabyDuration+pet.ChildDuration+pet.TeenDuration+pet.AdultDuration), 1)
+}
+
 // fakeStore is an in-memory pet.Store for tests, recording every Save.
 type fakeStore struct {
 	saved   []pet.Pet
@@ -235,6 +242,94 @@ func TestAdultWalkCycleAlternatesPoses(t *testing.T) {
 	assert.True(t, sawLeftLimbPose, "Adult's walk cycle should show its left-limb pose at some point")
 }
 
+func TestViewAtDeathShowsGravestoneAndHidesCareUI(t *testing.T) {
+	t.Parallel()
+
+	p := pet.New(born)
+	// Died with an uncleaned Mess: it must not show once dead, even though
+	// HasMess itself would still report true.
+	p.LastCleanedAt = born.Add(-pet.MessInterval)
+	s := deathScreen(t, p, &fakeStore{})
+
+	view := stripANSI(s.View())
+	assert.Contains(t, view, "RIP", "should show the gravestone art")
+	assert.Contains(t, view, "Death", "should show the Death label")
+	assert.Contains(t, view, "hatch a new Egg", "should show the restart prompt")
+
+	assert.NotContains(t, view, "Hunger", "meters should not show once dead")
+	assert.NotContains(t, view, "Happiness", "meters should not show once dead")
+	assert.NotContains(t, view, "(___)", "the Mess indicator should not show even though the Pet died with an uncleaned Mess")
+	assert.NotContains(t, view, "Feed", "the icon bar should not show once dead")
+	assert.NotContains(t, view, "Play", "the icon bar should not show once dead")
+	assert.NotContains(t, view, "Clean", "the icon bar should not show once dead")
+}
+
+func TestAgeInfoLineFreezesAtDeath(t *testing.T) {
+	t.Parallel()
+
+	s := deathScreen(t, pet.New(born), &fakeStore{})
+	require.Contains(t, stripANSI(s.View()), "Day 0")
+
+	deathAge := pet.EggDuration + pet.BabyDuration + pet.ChildDuration + pet.TeenDuration + pet.AdultDuration
+	s = advanceAnim(t, s, born.Add(deathAge+48*time.Hour), 1)
+
+	assert.Contains(t, stripANSI(s.View()), "Day 0", "Age should stay frozen at the moment of death, not keep climbing")
+}
+
+func TestCareActionsAreInertOnceDead(t *testing.T) {
+	t.Parallel()
+
+	p := pet.New(born)
+	p.Happiness = 1
+	s := deathScreen(t, p, &fakeStore{})
+
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+
+	ns, ok := s.(*next.Screen)
+	require.True(t, ok)
+	assert.Equal(t, 1, ns.Pet().Happiness, "Feed/Play/Clean's hotkeys should do nothing once the Pet has died")
+}
+
+func TestShortHelpAdvertisesRestartOnceDead(t *testing.T) {
+	t.Parallel()
+
+	death, ok := deathScreen(t, pet.New(born), &fakeStore{}).(tui.HelpProvider)
+	require.True(t, ok)
+
+	hints := death.ShortHelp()
+	require.Len(t, hints, 1, "only the restart binding should be advertised once dead")
+	assert.Equal(t, "hatch a new Egg", hints[0].Help().Desc)
+}
+
+func TestRestartByKeyProducesAFreshEgg(t *testing.T) {
+	t.Parallel()
+
+	deathAt := born.Add(pet.EggDuration + pet.BabyDuration + pet.ChildDuration + pet.TeenDuration + pet.AdultDuration)
+	s := deathScreen(t, pet.New(born), &fakeStore{})
+
+	s, cmd := s.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	require.NotNil(t, cmd, "restarting should save immediately")
+
+	ns, ok := s.(*next.Screen)
+	require.True(t, ok)
+	assert.Equal(t, pet.New(deathAt), ns.Pet(), "restart should produce exactly a freshly-created Pet, with no trace of the previous one")
+}
+
+func TestRestartByMouseProducesAFreshEgg(t *testing.T) {
+	t.Parallel()
+
+	deathAt := born.Add(pet.EggDuration + pet.BabyDuration + pet.ChildDuration + pet.TeenDuration + pet.AdultDuration)
+	s := deathScreen(t, pet.New(born), &fakeStore{})
+
+	s = clickZone(t, s, next.RestartZoneID)
+
+	ns, ok := s.(*next.Screen)
+	require.True(t, ok)
+	assert.Equal(t, pet.New(deathAt), ns.Pet(), "restart should produce exactly a freshly-created Pet, with no trace of the previous one")
+}
+
 func TestIconBarAndCareActionsRemainAvailableForTeen(t *testing.T) {
 	t.Parallel()
 
@@ -355,7 +450,7 @@ func TestShortHelpAdvertisesIconBarHintsForChildToo(t *testing.T) {
 	assert.NotEmpty(t, child.ShortHelp())
 }
 
-func TestViewShowsTheStageLabelForEggBabyChildTeenAndAdult(t *testing.T) {
+func TestViewShowsTheStageLabelForEggBabyChildTeenAdultAndDeath(t *testing.T) {
 	t.Parallel()
 
 	s := sizedScreen(t, pet.New(born), &fakeStore{})
@@ -372,6 +467,9 @@ func TestViewShowsTheStageLabelForEggBabyChildTeenAndAdult(t *testing.T) {
 
 	s = advanceAnim(t, s, born.Add(pet.EggDuration+pet.BabyDuration+pet.ChildDuration+pet.TeenDuration), 1)
 	assert.Contains(t, stripANSI(s.View()), "Adult", "should show the Adult label once fully grown")
+
+	s = advanceAnim(t, s, born.Add(pet.EggDuration+pet.BabyDuration+pet.ChildDuration+pet.TeenDuration+pet.AdultDuration), 1)
+	assert.Contains(t, stripANSI(s.View()), "Death", "should show the Death label once the Pet has died")
 }
 
 func TestHungerAndHappinessMetersShowTheRightPips(t *testing.T) {

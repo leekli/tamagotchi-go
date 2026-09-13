@@ -116,16 +116,25 @@ func (s *Screen) Update(msg tea.Msg) (tui.Screen, tea.Cmd) {
 		return s, tea.Batch(pet.Beat(), pet.SaveCmd(s.store, s.pet))
 
 	case tea.KeyMsg:
+		// Death is handled entirely separately from the icon bar: once dead
+		// there is no icon bar to route through, only the Restart binding.
+		if s.pet.Stage(s.now) == pet.StageDeath {
+			return s.updateDeathKey(msg)
+		}
 		return s.updateIconBarKey(msg)
 
 	case tea.MouseMsg:
+		if s.pet.Stage(s.now) == pet.StageDeath {
+			return s.updateDeathMouse(msg)
+		}
 		return s.updateIconBarMouse(msg)
 	}
 	return s, nil
 }
 
-// ShortHelp implements tui.HelpProvider: the icon bar's key hints once the
-// Pet has hatched, or none before then.
+// ShortHelp implements tui.HelpProvider: the icon bar's key hints while Care
+// actions are available, the restart hint once the Pet has reached Death, or
+// none before it has hatched.
 func (s *Screen) ShortHelp() []key.Binding {
 	return s.shortHelp()
 }
@@ -139,6 +148,9 @@ func (s *Screen) OnQuit() tea.Cmd {
 // View implements tui.Screen.
 func (s *Screen) View() string {
 	stage := s.pet.Stage(s.now)
+	if stage == pet.StageDeath {
+		return s.viewDeath()
+	}
 
 	frameArt, bob := eggArt, 0
 	switch stage {
@@ -171,7 +183,7 @@ func (s *Screen) View() string {
 		"",
 		s.styles.info.Render(infoLine(s.pet, s.now)),
 	}
-	if stage.Hatched() {
+	if stage.CareAvailable() {
 		menuRow := renderIconBar(s.selected, s.styles.icon, s.styles.iconSelected)
 		if s.menu == menuFeedChoice {
 			menuRow = renderFeedChoice(s.feedSelected, s.styles.icon, s.styles.iconSelected)
@@ -181,6 +193,26 @@ func (s *Screen) View() string {
 			flourishLine = s.styles.flourish.Render(s.flourish)
 		}
 		rows = append(rows, "", menuRow, flourishLine)
+	}
+
+	stack := lipgloss.JoinVertical(lipgloss.Center, rows...)
+	return lipgloss.Place(s.width, s.height, lipgloss.Center, lipgloss.Center, stack)
+}
+
+// viewDeath renders the Death Stage on its own: the gravestone art, the
+// "Death" label, the Pet's frozen Age/Weight, and the restart prompt. There
+// are deliberately no Hunger/Happiness meters, no Mess indicator, and no
+// Care-action icon bar here — none of them mean anything once the Pet has
+// died, so they are left out of this render path entirely rather than
+// hidden by a condition inside the shared one above.
+func (s *Screen) viewDeath() string {
+	rows := []string{
+		renderArtBox(deathArt, 0, s.styles.art),
+		renderStageLabel(pet.StageDeath, s.styles.stageLabel),
+		"",
+		s.styles.info.Render(infoLine(s.pet, s.now)),
+		"",
+		renderRestartPrompt(s.frame, s.styles.restartDim, s.styles.restartMid, s.styles.restartHi),
 	}
 
 	stack := lipgloss.JoinVertical(lipgloss.Center, rows...)
