@@ -264,6 +264,85 @@ func TestViewAtDeathShowsGravestoneAndHidesCareUI(t *testing.T) {
 	assert.NotContains(t, view, "Clean", "the icon bar should not show once dead")
 }
 
+// deathTopBorderWidth returns the rune width of the Death panel's top
+// border row, mirroring petAndStatsTopBorderWidths' rune-safe approach.
+func deathTopBorderWidth(t *testing.T, view string) int {
+	t.Helper()
+	for _, line := range strings.Split(stripANSI(view), "\n") {
+		runes := []rune(line)
+		start, end := -1, -1
+		for i, r := range runes {
+			if r == '╭' {
+				start = i
+			}
+			if r == '╮' {
+				end = i
+			}
+		}
+		if start >= 0 && end > start {
+			return end - start + 1
+		}
+	}
+	t.Fatal("no Death panel top border found")
+	return 0
+}
+
+func TestDeathPanelHasItsFixedDimensionsAndNoCaption(t *testing.T) {
+	t.Parallel()
+
+	view := stripANSI(deathScreen(t, pet.New(born), &fakeStore{}).View())
+	require.Contains(t, view, "╭")
+
+	assert.Equal(t, 43, deathTopBorderWidth(t, view), "Death panel width per ADR-0007")
+
+	lineCount := 0
+	inPanel := false
+	for _, line := range strings.Split(view, "\n") {
+		if strings.Contains(line, "╭") {
+			inPanel = true
+		}
+		if inPanel {
+			lineCount++
+		}
+		if strings.Contains(line, "╰") {
+			break
+		}
+	}
+	assert.Equal(t, 15, lineCount, "Death panel height per ADR-0007")
+
+	for _, line := range strings.Split(view, "\n") {
+		if strings.Contains(line, "╭") {
+			assert.NotRegexp(t, `[A-Za-z]`, line, "the Death panel is the Screen's sole panel and should carry no caption")
+		}
+	}
+}
+
+func TestRestartPromptIsAPulsingChip(t *testing.T) {
+	t.Parallel()
+
+	deathAt := born.Add(pet.EggDuration + pet.BabyDuration + pet.ChildDuration + pet.TeenDuration + pet.AdultDuration)
+	s := deathScreen(t, pet.New(born), &fakeStore{})
+	lineAt := func(s tui.Screen) string {
+		for _, l := range strings.Split(s.View(), "\n") {
+			if strings.Contains(l, "hatch a new Egg") {
+				return l
+			}
+		}
+		return ""
+	}
+
+	first := lineAt(s)
+	require.NotEmpty(t, first)
+	changed := false
+	for i := 0; i < 15 && !changed; i++ {
+		s = advanceAnim(t, s, deathAt, 1)
+		if lineAt(s) != first {
+			changed = true
+		}
+	}
+	assert.True(t, changed, "the restart chip should pulse over about a second")
+}
+
 func TestAgeInfoLineFreezesAtDeath(t *testing.T) {
 	t.Parallel()
 

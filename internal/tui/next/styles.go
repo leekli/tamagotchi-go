@@ -20,6 +20,14 @@ const (
 	statsPanelHeight = 10
 
 	panelGap = "  "
+
+	// deathPanelWidth/Height is the Death panel's fixed outer size, per
+	// docs/adr/0007: driven by the Restart prompt's 39-character text, and
+	// padded by one extra row so its total height matches the hatched
+	// composite's (petPanelHeight + gap + Icon bar area), rather than
+	// leaving a one-row discrepancy between mutually exclusive states.
+	deathPanelWidth  = 43
+	deathPanelHeight = 15
 )
 
 // styles holds the Lip Gloss styles the Next Screen paints with, derived
@@ -27,6 +35,7 @@ const (
 type styles struct {
 	petPanel   tui.Panel // frames the Pet's art and Stage label
 	statsPanel tui.Panel // frames Hunger/Happiness/Mess/Age/Weight
+	deathPanel tui.Panel // the single, uncaptioned panel shown once the Pet has died
 
 	art        lipgloss.Style // the Pet's Egg/Baby/Child/Teen art
 	stageLabel lipgloss.Style // the Stage label ("Egg"/"Baby"/"Child"/"Teen")
@@ -40,9 +49,9 @@ type styles struct {
 	iconSelected lipgloss.Style // the currently selected icon-bar entry
 	flourish     lipgloss.Style // a Care action's text feedback
 
-	// restartDim/Mid/Hi are the restart prompt's three pulse levels, shown
-	// once the Pet has reached Death — the same dim -> mid -> bright
-	// progression the Welcome Screen's begin prompt already uses.
+	// restartDim/Mid/Hi are the restart chip's three pulse levels — the same
+	// shared chip the Welcome Screen's begin prompt uses, sharing a constant
+	// Accent background and differing only in foreground.
 	restartDim lipgloss.Style
 	restartMid lipgloss.Style
 	restartHi  lipgloss.Style
@@ -52,6 +61,7 @@ func newStyles(p tui.Palette) styles {
 	return styles{
 		petPanel:   tui.Panel{Width: petPanelWidth, Height: petPanelHeight, Caption: "PET", Border: p.Dim},
 		statsPanel: tui.Panel{Width: statsPanelWidth, Height: statsPanelHeight, Caption: "STATS", Border: p.Dim},
+		deathPanel: tui.Panel{Width: deathPanelWidth, Height: deathPanelHeight, Border: p.Dim},
 
 		art:        lipgloss.NewStyle().Foreground(p.Accent),
 		stageLabel: lipgloss.NewStyle().Foreground(p.Dim),
@@ -65,8 +75,8 @@ func newStyles(p tui.Palette) styles {
 		iconSelected: lipgloss.NewStyle().Foreground(p.Accent).Bold(true),
 		flourish:     lipgloss.NewStyle().Foreground(p.Highlight),
 
-		restartDim: lipgloss.NewStyle().Foreground(p.Dim),
-		restartMid: lipgloss.NewStyle().Foreground(p.Screen),
-		restartHi:  lipgloss.NewStyle().Foreground(p.Highlight).Bold(true),
+		restartDim: lipgloss.NewStyle().Background(p.Accent).Foreground(p.Dim),
+		restartMid: lipgloss.NewStyle().Background(p.Accent).Foreground(p.Screen),
+		restartHi:  lipgloss.NewStyle().Background(p.Accent).Foreground(p.OnAccent).Bold(true),
 	}
 }

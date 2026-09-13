@@ -224,17 +224,24 @@ func (s *Screen) View() string {
 // died, so they are left out of this render path entirely rather than
 // hidden by a condition inside the shared one above.
 func (s *Screen) viewDeath() string {
-	rows := []string{
+	restartChip := tui.RenderChip(restartPromptText, s.frame, restartFramesPerPulse,
+		s.styles.restartDim, s.styles.restartMid, s.styles.restartHi, RestartZoneID)
+
+	content := lipgloss.JoinVertical(lipgloss.Center,
 		renderArtBox(deathArt, 0, s.styles.art),
 		renderStageLabel(pet.StageDeath, s.styles.stageLabel),
 		"",
 		s.styles.info.Render(infoLine(s.pet, s.now)),
 		"",
-		renderRestartPrompt(s.frame, s.styles.restartDim, s.styles.restartMid, s.styles.restartHi),
-	}
+		// One extra blank row of breathing room before Restart, so the
+		// Death panel's total height matches the hatched composite's
+		// (docs/adr/0007) rather than differing by one row.
+		"",
+		restartChip,
+	)
 
-	stack := lipgloss.JoinVertical(lipgloss.Center, rows...)
-	return lipgloss.Place(s.width, s.height, lipgloss.Center, lipgloss.Center, stack)
+	panel := s.styles.deathPanel.Render(content)
+	return lipgloss.Place(s.width, s.height, lipgloss.Center, lipgloss.Center, panel)
 }
 
 // Scrollable implements tui.Screen. The Next Screen is now authored to fit
