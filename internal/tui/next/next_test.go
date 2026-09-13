@@ -53,6 +53,13 @@ func teenScreen(t *testing.T, initial pet.Pet, store pet.Store) tui.Screen {
 	return advanceAnim(t, s, born.Add(pet.EggDuration+pet.BabyDuration+pet.ChildDuration), 1)
 }
 
+// adultScreen mirrors teenScreen, but grown all the way into an Adult.
+func adultScreen(t *testing.T, initial pet.Pet, store pet.Store) tui.Screen {
+	t.Helper()
+	s := sizedScreen(t, initial, store)
+	return advanceAnim(t, s, born.Add(pet.EggDuration+pet.BabyDuration+pet.ChildDuration+pet.TeenDuration), 1)
+}
+
 // fakeStore is an in-memory pet.Store for tests, recording every Save.
 type fakeStore struct {
 	saved   []pet.Pet
@@ -194,6 +201,40 @@ func TestTeenWalkCycleAlternatesPoses(t *testing.T) {
 	assert.True(t, sawLeftLimbPose, "Teen's walk cycle should show its left-limb pose at some point")
 }
 
+func TestViewShowsAdultAfterTeenDuration(t *testing.T) {
+	t.Parallel()
+
+	s := sizedScreen(t, pet.New(born), &fakeStore{})
+	s = advanceAnim(t, s, born.Add(pet.EggDuration+pet.BabyDuration+pet.ChildDuration), 1)
+	require.Contains(t, stripANSI(s.View()), "^==^", "should be a Teen before TeenDuration has elapsed")
+
+	s = advanceAnim(t, s, born.Add(pet.EggDuration+pet.BabyDuration+pet.ChildDuration+pet.TeenDuration), 1)
+	view := stripANSI(s.View())
+	assert.Contains(t, view, "^====^", "Adult art should be shown after TeenDuration has elapsed")
+	assert.NotContains(t, view, "^==^", "Teen art should no longer appear")
+}
+
+func TestAdultWalkCycleAlternatesPoses(t *testing.T) {
+	t.Parallel()
+
+	adultAt := born.Add(pet.EggDuration + pet.BabyDuration + pet.ChildDuration + pet.TeenDuration)
+	s := sizedScreen(t, pet.New(born), &fakeStore{})
+
+	var sawRightLimbPose, sawLeftLimbPose bool
+	for i := 0; i < 64; i++ {
+		s = advanceAnim(t, s, adultAt, 1)
+		view := stripANSI(s.View())
+		if strings.Contains(view, ")=>") {
+			sawRightLimbPose = true
+		}
+		if strings.Contains(view, "<=(") {
+			sawLeftLimbPose = true
+		}
+	}
+	assert.True(t, sawRightLimbPose, "Adult's walk cycle should show its right-limb pose at some point")
+	assert.True(t, sawLeftLimbPose, "Adult's walk cycle should show its left-limb pose at some point")
+}
+
 func TestIconBarAndCareActionsRemainAvailableForTeen(t *testing.T) {
 	t.Parallel()
 
@@ -232,6 +273,46 @@ func TestShortHelpAdvertisesIconBarHintsForTeenToo(t *testing.T) {
 	teen, ok := teenScreen(t, pet.New(born), &fakeStore{}).(tui.HelpProvider)
 	require.True(t, ok)
 	assert.NotEmpty(t, teen.ShortHelp())
+}
+
+func TestIconBarAndCareActionsRemainAvailableForAdult(t *testing.T) {
+	t.Parallel()
+
+	p := pet.New(born)
+	p.Happiness = 1
+	s := adultScreen(t, p, &fakeStore{})
+
+	view := stripANSI(s.View())
+	assert.Contains(t, view, "Feed")
+	assert.Contains(t, view, "Play")
+	assert.Contains(t, view, "Clean")
+
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
+	ns, ok := s.(*next.Screen)
+	require.True(t, ok)
+	assert.Equal(t, 2, ns.Pet().Happiness, "Play should still work once the Pet is an Adult")
+}
+
+func TestMouseClickActivatesIconsForAdult(t *testing.T) {
+	t.Parallel()
+
+	p := pet.New(born)
+	p.Happiness = 1
+	s := adultScreen(t, p, &fakeStore{})
+
+	s = clickZone(t, s, next.PlayZoneID)
+
+	ns, ok := s.(*next.Screen)
+	require.True(t, ok)
+	assert.Equal(t, 2, ns.Pet().Happiness, "clicking Play should still work once the Pet is an Adult")
+}
+
+func TestShortHelpAdvertisesIconBarHintsForAdultToo(t *testing.T) {
+	t.Parallel()
+
+	adult, ok := adultScreen(t, pet.New(born), &fakeStore{}).(tui.HelpProvider)
+	require.True(t, ok)
+	assert.NotEmpty(t, adult.ShortHelp())
 }
 
 func TestIconBarAndCareActionsRemainAvailableForChild(t *testing.T) {
@@ -274,7 +355,7 @@ func TestShortHelpAdvertisesIconBarHintsForChildToo(t *testing.T) {
 	assert.NotEmpty(t, child.ShortHelp())
 }
 
-func TestViewShowsTheStageLabelForEggBabyChildAndTeen(t *testing.T) {
+func TestViewShowsTheStageLabelForEggBabyChildTeenAndAdult(t *testing.T) {
 	t.Parallel()
 
 	s := sizedScreen(t, pet.New(born), &fakeStore{})
@@ -288,6 +369,9 @@ func TestViewShowsTheStageLabelForEggBabyChildAndTeen(t *testing.T) {
 
 	s = advanceAnim(t, s, born.Add(pet.EggDuration+pet.BabyDuration+pet.ChildDuration), 1)
 	assert.Contains(t, stripANSI(s.View()), "Teen", "should show the Teen label once grown further")
+
+	s = advanceAnim(t, s, born.Add(pet.EggDuration+pet.BabyDuration+pet.ChildDuration+pet.TeenDuration), 1)
+	assert.Contains(t, stripANSI(s.View()), "Adult", "should show the Adult label once fully grown")
 }
 
 func TestHungerAndHappinessMetersShowTheRightPips(t *testing.T) {

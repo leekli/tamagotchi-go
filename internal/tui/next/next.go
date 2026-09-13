@@ -148,6 +148,8 @@ func (s *Screen) View() string {
 		frameArt, bob = childArt, hatchedBob(s.frame)
 	case pet.StageTeen:
 		frameArt, bob = alternatingPose(teenFrames, teenPoseFramesPerStep, s.frame), hatchedBob(s.frame)
+	case pet.StageAdult:
+		frameArt, bob = alternatingPose(adultFrames, adultPoseFramesPerStep, s.frame), hatchedBob(s.frame)
 	}
 
 	// The Mess line and the flourish line each always occupy a row, blank
