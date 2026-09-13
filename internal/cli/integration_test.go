@@ -459,3 +459,27 @@ func TestFullCareLoopKeyboardAndMouseReachTheSameStateAsTeen(t *testing.T) {
 	assert.False(t, byKeyboard.HasMess(time.Now()))
 	assert.False(t, byMouse.HasMess(time.Now()))
 }
+
+// TestFullCareLoopKeyboardAndMouseReachTheSameStateAsAdult mirrors
+// TestFullCareLoopKeyboardAndMouseReachTheSameStateAsTeen, proving the same
+// keyboard/mouse equivalence once the Pet has grown into an Adult — waiting
+// for the "Adult" Stage label specifically confirms the fast-forward actually
+// reached that Stage.
+//
+// Deliberately not t.Parallel() — see
+// TestPlayAndCleanKeyboardAndMouseReachTheSameState's comment on waitForZone
+// and bubblezone's shared DefaultManager.
+func TestFullCareLoopKeyboardAndMouseReachTheSameStateAsAdult(t *testing.T) {
+	growBy := pet.EggDuration + pet.BabyDuration + pet.ChildDuration + pet.TeenDuration + time.Second
+	byKeyboard := runFullCareLoop(t, false, growBy, "Adult")
+	byMouse := runFullCareLoop(t, true, growBy, "Adult")
+
+	assert.Equal(t, pet.MaxStat, byKeyboard.Happiness)
+	assert.Equal(t, pet.MaxStat, byMouse.Happiness)
+	// Snack adds 1 Weight and the subsequent Play removes 1, netting back to
+	// BaseWeight.
+	assert.Equal(t, pet.BaseWeight, byKeyboard.Weight)
+	assert.Equal(t, pet.BaseWeight, byMouse.Weight)
+	assert.False(t, byKeyboard.HasMess(time.Now()))
+	assert.False(t, byMouse.HasMess(time.Now()))
+}
