@@ -111,10 +111,13 @@ func defaultKeyMap() keyMap {
 func (s *Screen) Selected() int { return s.selected }
 
 // updateIconBarKey handles a key press against whichever menu is currently
-// open. It is a no-op before the Pet has hatched — there is nothing to act
-// on yet.
+// open. It is a no-op before the Pet has hatched, or once Care actions are
+// no longer available — there is nothing to act on yet in either case. In
+// practice Update already routes Death to updateDeathKey before reaching
+// here, but this guard uses CareAvailable rather than Hatched anyway, so it
+// stays correct on its own terms regardless of how it's reached.
 func (s *Screen) updateIconBarKey(msg tea.KeyMsg) (tui.Screen, tea.Cmd) {
-	if !s.pet.Stage(s.now).Hatched() {
+	if !s.pet.Stage(s.now).CareAvailable() {
 		return s, nil
 	}
 	if s.menu == menuFeedChoice {
@@ -170,9 +173,9 @@ func (s *Screen) updateFeedChoiceKey(msg tea.KeyMsg) (tui.Screen, tea.Cmd) {
 
 // updateIconBarMouse handles a mouse message against whichever menu's click
 // zones are currently live. Like updateIconBarKey, it is a no-op before the
-// Pet has hatched.
+// Pet has hatched, or once Care actions are no longer available.
 func (s *Screen) updateIconBarMouse(msg tea.MouseMsg) (tui.Screen, tea.Cmd) {
-	if !s.pet.Stage(s.now).Hatched() {
+	if !s.pet.Stage(s.now).CareAvailable() {
 		return s, nil
 	}
 	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
