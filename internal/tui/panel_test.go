@@ -75,7 +75,7 @@ func TestPanelCentresContentHorizontallyAndVertically(t *testing.T) {
 	lines := strings.Split(rendered, "\n")
 	require.Len(t, lines, 8)
 
-	var contentRow = -1
+	contentRow := -1
 	for i, line := range lines {
 		if strings.Contains(line, "hi") {
 			contentRow = i
