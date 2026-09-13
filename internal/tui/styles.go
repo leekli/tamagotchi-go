@@ -11,6 +11,8 @@ type Palette struct {
 	Accent    lipgloss.AdaptiveColor // pink-magenta
 	Screen    lipgloss.AdaptiveColor // LCD grey-green
 	Dim       lipgloss.AdaptiveColor // muted text
+	Amber     lipgloss.AdaptiveColor // Meter grading: fair
+	Danger    lipgloss.AdaptiveColor // Meter grading: low; the Mess row
 }
 
 // DefaultPalette returns the standard palette.
@@ -21,6 +23,8 @@ func DefaultPalette() Palette {
 		Accent:    lipgloss.AdaptiveColor{Light: "#be185d", Dark: "#f472b6"},
 		Screen:    lipgloss.AdaptiveColor{Light: "#3f6212", Dark: "#a3e635"},
 		Dim:       lipgloss.AdaptiveColor{Light: "#57534e", Dark: "#a8a29e"},
+		Amber:     lipgloss.AdaptiveColor{Light: "#b45309", Dark: "#fbbf24"},
+		Danger:    lipgloss.AdaptiveColor{Light: "#b91c1c", Dark: "#f87171"},
 	}
 }
 
