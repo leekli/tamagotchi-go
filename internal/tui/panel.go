@@ -39,6 +39,7 @@ func (p Panel) Render(content string) string {
 		Padding(1).
 		Width(innerWidth).
 		Height(innerHeight).
+		Align(lipgloss.Center, lipgloss.Center).
 		MaxWidth(p.Width).
 		MaxHeight(p.Height).
 		Render(content)

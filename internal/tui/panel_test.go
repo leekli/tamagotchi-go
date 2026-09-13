@@ -69,6 +69,31 @@ func TestPanelHandlesEmptyContent(t *testing.T) {
 	everyLineHasWidth(t, rendered, 5, 14)
 }
 
+func TestPanelCentresContentHorizontallyAndVertically(t *testing.T) {
+	p := tui.Panel{Width: 20, Height: 8, Border: panelBorder}
+	rendered := p.Render("hi")
+	lines := strings.Split(rendered, "\n")
+	require.Len(t, lines, 8)
+
+	var contentRow = -1
+	for i, line := range lines {
+		if strings.Contains(line, "hi") {
+			contentRow = i
+			break
+		}
+	}
+	require.GreaterOrEqual(t, contentRow, 0, "content should appear somewhere")
+	assert.Greater(t, contentRow, 0, "a single short line should not sit on the very first (border) row")
+	assert.Less(t, contentRow, 7, "nor on the very last (border) row")
+
+	plain := ansiSeq.ReplaceAllString(lines[contentRow], "")
+	byteIdx := strings.Index(plain, "hi")
+	require.GreaterOrEqual(t, byteIdx, 0)
+	leftGap := lipgloss.Width(plain[:byteIdx]) // display cells, not bytes: the border is a multi-byte rune
+	rightGap := lipgloss.Width(plain) - leftGap - lipgloss.Width("hi")
+	assert.InDelta(t, leftGap, rightGap, 1, "short content should be horizontally centred, not left-aligned")
+}
+
 func TestPanelWithNoCaptionHasAPlainTopBorder(t *testing.T) {
 	p := tui.Panel{Width: 18, Height: 6, Border: panelBorder}
 	rendered := p.Render("content")
