@@ -28,6 +28,21 @@ const (
 	// leaving a one-row discrepancy between mutually exclusive states.
 	deathPanelWidth  = 43
 	deathPanelHeight = 15
+
+	// tabFieldWidth is a tab's own label field width, sized to the longest
+	// label across both the Feed/Play/Clean and Meal/Snack menus ("Clean"/
+	// "Snack", 5 characters). tabWidth/tabHeight are the resulting fixed
+	// outer size of every tab (border and 1-column horizontal padding, no
+	// vertical padding), and iconRowWidth is the Icon bar's fixed total row
+	// width, shared by both menus so switching between them never shifts
+	// anything else on screen — all per docs/adr/0007.
+	tabFieldWidth = 5
+	tabWidth      = 9
+	tabHeight     = 3
+	iconRowWidth  = 31
+
+	// tabGap is the fixed spacing between adjacent tabs in the Icon bar.
+	tabGap = "  "
 )
 
 // styles holds the Lip Gloss styles the Next Screen paints with, derived
@@ -45,9 +60,10 @@ type styles struct {
 	info       lipgloss.Style // Age and Weight
 	mess       lipgloss.Style // the Mess indicator glyph
 
-	icon         lipgloss.Style // an unselected icon-bar entry
-	iconSelected lipgloss.Style // the currently selected icon-bar entry
-	flourish     lipgloss.Style // a Care action's text feedback
+	tabBorder   lipgloss.AdaptiveColor // every tab's border, selected or not
+	tabNormal   lipgloss.Style         // an unselected tab's label
+	tabSelected lipgloss.Style         // the currently selected tab's label
+	flourish    lipgloss.Style         // a Care action's text feedback
 
 	// restartDim/Mid/Hi are the restart chip's three pulse levels — the same
 	// shared chip the Welcome Screen's begin prompt uses, sharing a constant
@@ -59,9 +75,9 @@ type styles struct {
 
 func newStyles(p tui.Palette) styles {
 	return styles{
-		petPanel:   tui.Panel{Width: petPanelWidth, Height: petPanelHeight, Caption: "PET", Border: p.Dim},
-		statsPanel: tui.Panel{Width: statsPanelWidth, Height: statsPanelHeight, Caption: "STATS", Border: p.Dim},
-		deathPanel: tui.Panel{Width: deathPanelWidth, Height: deathPanelHeight, Border: p.Dim},
+		petPanel:   tui.Panel{Width: petPanelWidth, Height: petPanelHeight, Caption: "PET", PaddingX: 1, PaddingY: 1, Border: p.Dim},
+		statsPanel: tui.Panel{Width: statsPanelWidth, Height: statsPanelHeight, Caption: "STATS", PaddingX: 1, PaddingY: 1, Border: p.Dim},
+		deathPanel: tui.Panel{Width: deathPanelWidth, Height: deathPanelHeight, PaddingX: 1, PaddingY: 1, Border: p.Dim},
 
 		art:        lipgloss.NewStyle().Foreground(p.Accent),
 		stageLabel: lipgloss.NewStyle().Foreground(p.Dim),
@@ -71,9 +87,12 @@ func newStyles(p tui.Palette) styles {
 		info:       lipgloss.NewStyle().Foreground(p.Dim),
 		mess:       lipgloss.NewStyle().Foreground(p.Danger),
 
-		icon:         lipgloss.NewStyle().Foreground(p.Dim),
-		iconSelected: lipgloss.NewStyle().Foreground(p.Accent).Bold(true),
-		flourish:     lipgloss.NewStyle().Foreground(p.Highlight),
+		// A selected tab shares the exact "this is the pressable thing"
+		// treatment the chip uses: a constant Accent fill and OnAccent text.
+		tabBorder:   p.Dim,
+		tabNormal:   lipgloss.NewStyle().Foreground(p.Dim),
+		tabSelected: lipgloss.NewStyle().Background(p.Accent).Foreground(p.OnAccent).Bold(true),
+		flourish:    lipgloss.NewStyle().Foreground(p.Highlight),
 
 		restartDim: lipgloss.NewStyle().Background(p.Accent).Foreground(p.Dim),
 		restartMid: lipgloss.NewStyle().Background(p.Accent).Foreground(p.Screen),

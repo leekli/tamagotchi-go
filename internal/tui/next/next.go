@@ -6,6 +6,7 @@
 package next
 
 import (
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -196,9 +197,9 @@ func (s *Screen) View() string {
 
 	rows := []string{topRow}
 	if stage.CareAvailable() {
-		menuRow := renderIconBar(s.selected, s.styles.icon, s.styles.iconSelected)
+		menuRow := renderIconBar(s.selected, s.styles.tabNormal, s.styles.tabSelected, s.styles.tabBorder)
 		if s.menu == menuFeedChoice {
-			menuRow = renderFeedChoice(s.feedSelected, s.styles.icon, s.styles.iconSelected)
+			menuRow = renderFeedChoice(s.feedSelected, s.styles.tabNormal, s.styles.tabSelected, s.styles.tabBorder)
 		}
 		flourishLine := ""
 		if s.flourish != "" {
@@ -206,11 +207,11 @@ func (s *Screen) View() string {
 		}
 		rows = append(rows, "", menuRow, flourishLine)
 	} else {
-		// Egg: no Icon bar yet, but the same three rows (gap, menu, flourish)
-		// are still reserved blank, so Hatch never visibly grows the screen.
-		// #46 will need to keep this in step once the Icon bar's own height
-		// changes from a single bracket row to bordered tabs.
-		rows = append(rows, "", "", "")
+		// Egg: no Icon bar yet, but the same rows (gap, the tab row's full
+		// height, flourish) are still reserved blank, so Hatch never
+		// visibly grows the screen.
+		blankMenuRow := strings.Repeat("\n", tabHeight-1)
+		rows = append(rows, "", blankMenuRow, "")
 	}
 
 	stack := lipgloss.JoinVertical(lipgloss.Center, rows...)

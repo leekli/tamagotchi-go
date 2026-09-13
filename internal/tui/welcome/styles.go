@@ -38,6 +38,6 @@ func newStyles(p tui.Palette) styles {
 		chipDim:    lipgloss.NewStyle().Background(p.Accent).Foreground(p.Dim),
 		chipMid:    lipgloss.NewStyle().Background(p.Accent).Foreground(p.Shell),
 		chipBright: lipgloss.NewStyle().Background(p.Accent).Foreground(p.OnAccent).Bold(true),
-		card:       tui.Panel{Width: cardWidth, Height: cardHeight, Border: p.Dim},
+		card:       tui.Panel{Width: cardWidth, Height: cardHeight, PaddingX: 1, PaddingY: 1, Border: p.Dim},
 	}
 }

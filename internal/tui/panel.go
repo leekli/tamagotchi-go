@@ -11,10 +11,16 @@ import (
 // contract every Bordered Dashboard Screen relies on (see ADR-0007). Width
 // and Height are the Panel's total outer size, border and padding included.
 // Caption, when non-empty, is spliced into the top border; a Screen's sole
-// Panel leaves it empty (see CONTEXT.md's Panel entry).
+// Panel leaves it empty (see CONTEXT.md's Panel entry). PaddingX and
+// PaddingY are set independently (not a single uniform value) because a
+// small chrome element like an Icon-bar tab wants no vertical padding at
+// all (PaddingY: 0) to fit a 3-row height, while every other Panel in this
+// app uses 1 on both axes.
 type Panel struct {
 	Width, Height int
 	Caption       string
+	PaddingX      int
+	PaddingY      int
 	Border        lipgloss.AdaptiveColor
 }
 
@@ -36,7 +42,10 @@ func (p Panel) Render(content string) string {
 	box := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(p.Border).
-		Padding(1).
+		PaddingLeft(p.PaddingX).
+		PaddingRight(p.PaddingX).
+		PaddingTop(p.PaddingY).
+		PaddingBottom(p.PaddingY).
 		Width(innerWidth).
 		Height(innerHeight).
 		Align(lipgloss.Center, lipgloss.Center).

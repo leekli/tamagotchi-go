@@ -11,6 +11,7 @@ import (
 	"github.com/leekli/tamagotchi-go/internal/anim"
 	"github.com/leekli/tamagotchi-go/internal/art"
 	"github.com/leekli/tamagotchi-go/internal/pet"
+	"github.com/leekli/tamagotchi-go/internal/tui"
 )
 
 // eggArt is the Pet's Egg-stage art: static, no idle animation.
@@ -154,41 +155,52 @@ func renderMessLine(style lipgloss.Style) string {
 	return style.Render(strings.Join(messArt, "\n"))
 }
 
-// renderIconBar draws the Care-action icon bar, highlighting selected and
-// wrapping each icon in its own bubblezone mark so a click can be tested
-// against exactly its cells — the same pattern welcome/prompt.go uses for
-// the begin prompt, with the same nil-manager guard for a click arriving
-// before the first scan.
-func renderIconBar(selected int, normal, selectedStyle lipgloss.Style) string {
-	parts := make([]string, numIcons)
-	for i := icon(0); i < numIcons; i++ {
-		style := normal
-		if int(i) == selected {
-			style = selectedStyle
-		}
-		rendered := style.Render(fmt.Sprintf("[ %s ]", iconLabel[i]))
-		if zone.DefaultManager != nil {
-			rendered = zone.Mark(iconZoneID[i], rendered)
-		}
-		parts[i] = rendered
+// renderTab draws one Icon-bar tab: label centred inside a fixed-size
+// bordered box (tabWidth x tabHeight, no vertical padding — see
+// docs/adr/0007), filled with selectedStyle's Accent background and dark
+// foreground when selected, outline-only in normal otherwise. The border
+// itself stays border regardless of selection: only the label's own style
+// carries the "this is the pressable one" signal.
+func renderTab(label string, selected bool, normal, selectedStyle lipgloss.Style, border lipgloss.AdaptiveColor) string {
+	style := normal
+	if selected {
+		style = selectedStyle
 	}
-	return strings.Join(parts, "  ")
+	field := lipgloss.PlaceHorizontal(tabFieldWidth, lipgloss.Center, label)
+	panel := tui.Panel{Width: tabWidth, Height: tabHeight, PaddingX: 1, PaddingY: 0, Border: border}
+	return panel.Render(style.Render(field))
+}
+
+// renderTabRow lays out labels as a row of bordered tabs, the selected index
+// highlighted, each wrapped in its zoneID so a click can be tested against
+// exactly its cells (nil-manager guarded, the same pattern
+// welcome/welcome.go's chip uses). The row is always exactly iconRowWidth
+// columns, regardless of how many tabs it holds, so switching between the
+// Feed/Play/Clean bar and the narrower Meal/Snack chooser never shifts
+// anything else on screen.
+func renderTabRow(labels []string, zoneIDs []string, selected int, normal, selectedStyle lipgloss.Style, border lipgloss.AdaptiveColor) string {
+	parts := make([]string, 0, 2*len(labels)-1)
+	for i, label := range labels {
+		if i > 0 {
+			parts = append(parts, tabGap)
+		}
+		tab := renderTab(label, i == selected, normal, selectedStyle, border)
+		if zone.DefaultManager != nil {
+			tab = zone.Mark(zoneIDs[i], tab)
+		}
+		parts = append(parts, tab)
+	}
+	row := lipgloss.JoinHorizontal(lipgloss.Top, parts...)
+	return lipgloss.PlaceHorizontal(iconRowWidth, lipgloss.Center, row)
+}
+
+// renderIconBar draws the Care-action icon bar as a row of bordered tabs.
+func renderIconBar(selected int, normal, selectedStyle lipgloss.Style, border lipgloss.AdaptiveColor) string {
+	return renderTabRow(iconLabel[:], iconZoneID[:], selected, normal, selectedStyle, border)
 }
 
 // renderFeedChoice draws Feed's inline Meal/Snack chooser, using the same
-// selection/zone-marking pattern as renderIconBar.
-func renderFeedChoice(selected int, normal, selectedStyle lipgloss.Style) string {
-	parts := make([]string, numFeedOptions)
-	for i := feedOption(0); i < numFeedOptions; i++ {
-		style := normal
-		if int(i) == selected {
-			style = selectedStyle
-		}
-		rendered := style.Render(fmt.Sprintf("[ %s ]", feedOptionLabel[i]))
-		if zone.DefaultManager != nil {
-			rendered = zone.Mark(feedZoneID[i], rendered)
-		}
-		parts[i] = rendered
-	}
-	return strings.Join(parts, "  ")
+// tab-row layout as renderIconBar.
+func renderFeedChoice(selected int, normal, selectedStyle lipgloss.Style, border lipgloss.AdaptiveColor) string {
+	return renderTabRow(feedOptionLabel[:], feedZoneID[:], selected, normal, selectedStyle, border)
 }
