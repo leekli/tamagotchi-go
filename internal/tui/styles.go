@@ -13,6 +13,7 @@ type Palette struct {
 	Dim       lipgloss.AdaptiveColor // muted text
 	Amber     lipgloss.AdaptiveColor // Meter grading: fair
 	Danger    lipgloss.AdaptiveColor // Meter grading: low; the Mess row
+	OnAccent  lipgloss.AdaptiveColor // text atop a filled Accent background (a chip, a selected tab)
 }
 
 // DefaultPalette returns the standard palette.
@@ -25,6 +26,12 @@ func DefaultPalette() Palette {
 		Dim:       lipgloss.AdaptiveColor{Light: "#57534e", Dark: "#a8a29e"},
 		Amber:     lipgloss.AdaptiveColor{Light: "#b45309", Dark: "#fbbf24"},
 		Danger:    lipgloss.AdaptiveColor{Light: "#b91c1c", Dark: "#f87171"},
+		// OnAccent is deliberately inverted relative to every other token:
+		// Accent's Light variant (#be185d) is dark, so OnAccent.Light must be
+		// pale; Accent's Dark variant (#f472b6) is bright, so OnAccent.Dark
+		// must be near-black. It contrasts against Accent itself, not
+		// against the terminal background the way every other token does.
+		OnAccent: lipgloss.AdaptiveColor{Light: "#fdf2f8", Dark: "#1c1917"},
 	}
 }
 

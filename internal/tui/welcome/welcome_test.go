@@ -165,6 +165,62 @@ func TestViewShowsWordmarkAndPrompt(t *testing.T) {
 	assert.Contains(t, view, "(_  _)")
 }
 
+// topBorderWidth returns the rune width of the first row in view that
+// carries a rounded top-left/top-right border corner, so tests can assert on
+// the card's actual outer width without depending on lipgloss.Width's
+// byte-vs-rune handling of the multi-byte border glyphs.
+func topBorderWidth(t *testing.T, view string) int {
+	t.Helper()
+	for _, line := range strings.Split(stripANSI(view), "\n") {
+		runes := []rune(line)
+		start, end := -1, -1
+		for i, r := range runes {
+			if r == '╭' {
+				start = i
+			}
+			if r == '╮' {
+				end = i
+			}
+		}
+		if start >= 0 && end > start {
+			return end - start + 1
+		}
+	}
+	t.Fatal("no top border row found in view")
+	return 0
+}
+
+func TestViewFramesEverythingInABorderedCard(t *testing.T) {
+	t.Parallel()
+
+	view := stripANSI(sizedScreen(t, 90, 24).View())
+	assert.Contains(t, view, "╭")
+	assert.Contains(t, view, "╰")
+}
+
+func TestCardHasItsFixedWidthRegardlessOfTerminalSize(t *testing.T) {
+	t.Parallel()
+
+	// ADR-0007: the Welcome card is a fixed 75 columns wide, whatever the
+	// surrounding terminal size — this is the whole point of the fixed
+	// Panel dimensions: no ragged, content-dependent borders.
+	for _, dims := range [][2]int{{80, 23}, {90, 24}, {120, 40}} {
+		view := sizedScreen(t, dims[0], dims[1]).View()
+		assert.Equal(t, 75, topBorderWidth(t, view), "terminal %dx%d", dims[0], dims[1])
+	}
+}
+
+func TestCardHasNoCaption(t *testing.T) {
+	t.Parallel()
+
+	view := stripANSI(sizedScreen(t, 90, 24).View())
+	for _, line := range strings.Split(view, "\n") {
+		if strings.Contains(line, "╭") {
+			assert.NotRegexp(t, `[A-Za-z]`, line, "the Welcome Screen's sole panel should carry no caption text")
+		}
+	}
+}
+
 func TestViewFillsTheBodyArea(t *testing.T) {
 	t.Parallel()
 

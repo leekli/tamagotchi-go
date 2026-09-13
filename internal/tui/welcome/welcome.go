@@ -23,6 +23,16 @@ import (
 // these cells.
 const BeginZoneID = "welcome.begin"
 
+// promptText is the begin prompt's text, rendered as a chip via
+// tui.RenderChip.
+const promptText = "Press Enter or click to begin"
+
+// promptFramesPerPulse is one full dim -> bright -> dim cycle of the begin
+// chip, in animation frames (~1s at anim.FPS). Kept local to this package,
+// like the Screen's other timing constants — only the pulse's timing and
+// quantisation logic live in the shared tui.PulseLevel.
+const promptFramesPerPulse = anim.FPS
+
 // Screen is the Welcome Screen.
 type Screen struct {
 	width  int
@@ -115,15 +125,18 @@ func (s *Screen) ShortHelp() []key.Binding {
 
 // View implements tui.Screen.
 func (s *Screen) View() string {
+	chip := tui.RenderChip(promptText, s.frame, promptFramesPerPulse,
+		s.styles.chipDim, s.styles.chipMid, s.styles.chipBright, BeginZoneID)
 	stack := lipgloss.JoinVertical(
 		lipgloss.Center,
 		renderWordmark(s.frame, s.styles.wordmark, s.styles.shine),
 		"",
 		renderCharBox(s.frame, s.styles.character),
 		"",
-		renderPrompt(s.frame, s.styles.promptDim, s.styles.promptMid, s.styles.promptHi),
+		chip,
 	)
-	return lipgloss.Place(s.width, s.height, lipgloss.Center, lipgloss.Center, stack)
+	card := s.styles.card.Render(stack)
+	return lipgloss.Place(s.width, s.height, lipgloss.Center, lipgloss.Center, card)
 }
 
 // Scrollable implements tui.Screen. The Welcome Screen is authored to fit the
