@@ -483,3 +483,83 @@ func TestFullCareLoopKeyboardAndMouseReachTheSameStateAsAdult(t *testing.T) {
 	assert.False(t, byKeyboard.HasMess(time.Now()))
 	assert.False(t, byMouse.HasMess(time.Now()))
 }
+
+// runDeathThenRestart drives the Welcome Screen to the Next Screen,
+// fast-forwards past every Stage duration up to and including AdultDuration
+// (the same injected-anim.TickMsg technique runFullCareLoop already uses —
+// no real sleeping) so the Pet has died, then restarts it either by hotkey
+// or by clicking the restart prompt's zone, and returns the resulting Pet.
+// Unlike runFullCareLoop, there is no Care action to prove parity on: the
+// thing being proven here is that both input methods reach the reset state,
+// not that they reach the same care-loop outcome.
+func runDeathThenRestart(t *testing.T, useMouse bool) pet.Pet {
+	t.Helper()
+
+	app := newTestApp(t)
+	tm := teatest.NewTestModel(t, app, teatest.WithInitialTermSize(100, 30))
+
+	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
+		return bytes.Contains(b, []byte("Press Enter or click to begin"))
+	}, teatest.WithDuration(3*time.Second))
+	tm.Send(tea.KeyMsg{Type: tea.KeyEnter})
+
+	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
+		return bytes.Contains(b, []byte("Hunger"))
+	}, teatest.WithDuration(3*time.Second))
+
+	growBy := pet.EggDuration + pet.BabyDuration + pet.ChildDuration + pet.TeenDuration + pet.AdultDuration + time.Second
+	tm.Send(anim.TickMsg{Time: time.Now().Add(growBy)})
+	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
+		return bytes.Contains(b, []byte("Death"))
+	}, teatest.WithDuration(3*time.Second))
+
+	if useMouse {
+		z := waitForZone(t, next.RestartZoneID)
+		tm.Send(tea.MouseMsg{
+			Action: tea.MouseActionPress, Button: tea.MouseButtonLeft,
+			X: (z.StartX + z.EndX) / 2, Y: z.StartY,
+		})
+	} else {
+		tm.Send(tea.KeyMsg{Type: tea.KeyEnter})
+	}
+
+	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
+		return bytes.Contains(b, []byte("Egg"))
+	}, teatest.WithDuration(3*time.Second))
+
+	tm.Send(tea.KeyMsg{Type: tea.KeyCtrlC})
+	tm.WaitFinished(t, teatest.WithFinalTimeout(3*time.Second))
+
+	final, ok := tm.FinalModel(t).(*tui.App)
+	require.True(t, ok)
+	screen, ok := final.Current().(*next.Screen)
+	require.True(t, ok)
+	return screen.Pet()
+}
+
+// TestDeathThenRestartByKeyboardProducesAFreshEgg and
+// TestDeathThenRestartByMouseProducesAFreshEgg prove restart reaches the
+// same reset state by keyboard and by mouse — this project's existing
+// keyboard/mouse parity philosophy, extended to a reset rather than only
+// forward growth.
+//
+// Deliberately not t.Parallel() — see
+// TestPlayAndCleanKeyboardAndMouseReachTheSameState's comment on waitForZone
+// and bubblezone's shared DefaultManager.
+func TestDeathThenRestartByKeyboardProducesAFreshEgg(t *testing.T) {
+	restarted := runDeathThenRestart(t, false)
+
+	assert.Equal(t, pet.MaxStat, restarted.Hunger)
+	assert.Equal(t, pet.MaxStat, restarted.Happiness)
+	assert.Equal(t, pet.BaseWeight, restarted.Weight)
+	assert.False(t, restarted.HasMess(time.Now()))
+}
+
+func TestDeathThenRestartByMouseProducesAFreshEgg(t *testing.T) {
+	restarted := runDeathThenRestart(t, true)
+
+	assert.Equal(t, pet.MaxStat, restarted.Hunger)
+	assert.Equal(t, pet.MaxStat, restarted.Happiness)
+	assert.Equal(t, pet.BaseWeight, restarted.Weight)
+	assert.False(t, restarted.HasMess(time.Now()))
+}

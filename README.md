@@ -28,14 +28,16 @@ TUI framework.
 ## Features
 
 - A living, persisted Pet on the Next Screen: it's born an Egg, hatches into a
-  Baby, grows into a Child, grows into a Teen, and finally into an Adult —
-  its current Stage always shown as a label beneath its art — while its
+  Baby, grows into a Child, a Teen, and an Adult, and eventually dies of old
+  age — its current Stage always shown as a label beneath its art — while its
   Hunger and Happiness decay over real elapsed time, whether or not the game
-  is running. State survives a restart (`internal/pet`).
+  is running. State persists between runs (`internal/pet`). Once it has
+  died, hatching a brand new Egg is one keypress or click away.
 - A full Care loop once the Pet has hatched: Feed it a Meal or a Snack, Play
   with it, or Clean up a Mess it's left uncleaned for too long — each
   reachable by keyboard or mouse, with immediate feedback in the stat meters,
-  and unaffected by growing from Baby all the way to Adult. Play also works
+  and unaffected by growing from Baby all the way to Adult (once the Pet has
+  died, there's nothing left to Feed, Play with, or Clean). Play also works
   off Weight gained from Snacking; let it climb too high and the Pet becomes
   Overfed, which speeds up Happiness decay the same way an uncleaned Mess
   does.
