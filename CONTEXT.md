@@ -24,6 +24,24 @@ Stage art with a small idle animation, its Hunger and Happiness meters, and
 its Age and Weight.
 _Avoid_: Placeholder Screen (describes its former state, not its identity), Game Screen
 
+### Layout
+
+**Panel**:
+A labelled, bordered region within a Screen's layout, grouping related content and setting it apart from sibling Panels. Captioned only when a sibling Panel on the same Screen needs distinguishing from it; a Screen's sole Panel stays uncaptioned.
+_Avoid_: box, card, widget, container
+
+**PET panel**:
+The Panel showing the Pet's art and Stage label on the Next Screen, for every Stage except Death.
+_Avoid_: art panel, creature panel
+
+**STATS panel**:
+The Panel showing the Pet's Hunger and Happiness Meters, Mess (when present), and Age/Weight, beside the PET panel on the Next Screen, for every Stage except Death.
+_Avoid_: info panel, meter panel
+
+**Death panel**:
+The single, uncaptioned Panel shown once the Pet has reached Death, consolidating its art, Stage label, Age/Weight, and the Restart prompt — never split into a PET panel and STATS panel the way earlier Stages are.
+_Avoid_: a stretched PET panel
+
 ### On-screen art
 
 **Wordmark**:
