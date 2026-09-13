@@ -164,25 +164,37 @@ func (s *Screen) View() string {
 		frameArt, bob = alternatingPose(adultFrames, adultPoseFramesPerStep, s.frame), hatchedBob(s.frame)
 	}
 
+	petContent := lipgloss.JoinVertical(lipgloss.Center,
+		renderArtBox(frameArt, bob, s.styles.art),
+		renderStageLabel(stage, s.styles.stageLabel),
+	)
+
 	// The Mess line and the flourish line each always occupy a row, blank
 	// when absent, the same fixed-height discipline renderArtBox uses for
 	// the art (via artBoxHeight) — so a Mess appearing/clearing or a
 	// flourish showing/clearing never shifts the rest of the centred stack.
+	// The STATS panel's own fixed height (statsPanelHeight) backs this up
+	// regardless.
 	messLine := ""
 	if s.pet.HasMess(s.now) {
 		messLine = renderMessLine(s.styles.mess)
 	}
-
-	rows := []string{
-		renderArtBox(frameArt, bob, s.styles.art),
-		renderStageLabel(stage, s.styles.stageLabel),
+	statsContent := lipgloss.JoinVertical(lipgloss.Center,
 		messLine,
 		"",
-		renderMeter("Hunger", s.pet.Hunger, s.styles.meter),
-		renderMeter("Happiness", s.pet.Happiness, s.styles.meter),
+		renderMeter("Hunger", s.pet.Hunger, s.styles.meterGood, s.styles.meterFair, s.styles.meterLow),
+		renderMeter("Happiness", s.pet.Happiness, s.styles.meterGood, s.styles.meterFair, s.styles.meterLow),
 		"",
 		s.styles.info.Render(infoLine(s.pet, s.now)),
-	}
+	)
+
+	topRow := lipgloss.JoinHorizontal(lipgloss.Top,
+		s.styles.petPanel.Render(petContent),
+		panelGap,
+		s.styles.statsPanel.Render(statsContent),
+	)
+
+	rows := []string{topRow}
 	if stage.CareAvailable() {
 		menuRow := renderIconBar(s.selected, s.styles.icon, s.styles.iconSelected)
 		if s.menu == menuFeedChoice {
@@ -193,6 +205,12 @@ func (s *Screen) View() string {
 			flourishLine = s.styles.flourish.Render(s.flourish)
 		}
 		rows = append(rows, "", menuRow, flourishLine)
+	} else {
+		// Egg: no Icon bar yet, but the same three rows (gap, menu, flourish)
+		// are still reserved blank, so Hatch never visibly grows the screen.
+		// #46 will need to keep this in step once the Icon bar's own height
+		// changes from a single bracket row to bordered tabs.
+		rows = append(rows, "", "", "")
 	}
 
 	stack := lipgloss.JoinVertical(lipgloss.Center, rows...)

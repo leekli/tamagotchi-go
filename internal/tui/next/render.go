@@ -108,10 +108,33 @@ func renderStageLabel(stage pet.Stage, style lipgloss.Style) string {
 	return style.Render(stage.String())
 }
 
-// renderMeter draws label as a four-pip meter, e.g. "Hunger    [**--]".
-func renderMeter(label string, value int, style lipgloss.Style) string {
-	pips := strings.Repeat("*", value) + strings.Repeat("-", pet.MaxStat-value)
-	return style.Render(fmt.Sprintf("%-10s[%s]", label, pips))
+// meterBar renders value (0..pet.MaxStat) as a graded block bar, e.g.
+// "▓▓▓░" for 3 of 4.
+func meterBar(value int) string {
+	return strings.Repeat("▓", value) + strings.Repeat("░", pet.MaxStat-value)
+}
+
+// meterStyle returns the style a Meter's value should render in: good
+// (green) for 3-4 of pet.MaxStat, fair (amber) for 2, low (danger) for 0-1.
+// Segment count remains the primary signal in meterBar; colour here is
+// additive, never the only one, so grading still reads correctly once
+// colour degrades to 16-colour, monochrome, or NO_COLOR terminals.
+func meterStyle(value int, good, fair, low lipgloss.Style) lipgloss.Style {
+	switch {
+	case value >= pet.MaxStat-1:
+		return good
+	case value == pet.MaxStat-2:
+		return fair
+	default:
+		return low
+	}
+}
+
+// renderMeter draws label as a graded block-bar Meter, e.g.
+// "Hunger     ▓▓▓░ 3/4".
+func renderMeter(label string, value int, good, fair, low lipgloss.Style) string {
+	style := meterStyle(value, good, fair, low)
+	return style.Render(fmt.Sprintf("%-9s  %s %d/%d", label, meterBar(value), value, pet.MaxStat))
 }
 
 // infoLine renders the Pet's Age and Weight on one line.
