@@ -137,7 +137,32 @@ func TestStageBeforeAtAndAfterTeenDuration(t *testing.T) {
 		"just grew into Teen":            {born.Add(pet.EggDuration + pet.BabyDuration + pet.ChildDuration), pet.StageTeen},
 		"just before growing into Adult": {born.Add(pet.EggDuration + pet.BabyDuration + pet.ChildDuration + pet.TeenDuration - time.Nanosecond), pet.StageTeen},
 		"exactly at growing into Adult":  {born.Add(pet.EggDuration + pet.BabyDuration + pet.ChildDuration + pet.TeenDuration), pet.StageAdult},
-		"well after growing into Adult":  {born.Add(pet.EggDuration + pet.BabyDuration + pet.ChildDuration + pet.TeenDuration + time.Hour), pet.StageAdult},
+		"well after growing into Adult":  {born.Add(pet.EggDuration + pet.BabyDuration + pet.ChildDuration + pet.TeenDuration + time.Minute), pet.StageAdult},
+	}
+
+	for name, tt := range tests {
+		tt := tt
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, p.Stage(tt.now))
+		})
+	}
+}
+
+func TestStageBeforeAtAndAfterAdultDuration(t *testing.T) {
+	t.Parallel()
+
+	born := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	p := pet.New(born)
+
+	tests := map[string]struct {
+		now  time.Time
+		want pet.Stage
+	}{
+		"just grew into Adult":          {born.Add(pet.EggDuration + pet.BabyDuration + pet.ChildDuration + pet.TeenDuration), pet.StageAdult},
+		"just before dying":             {born.Add(pet.EggDuration + pet.BabyDuration + pet.ChildDuration + pet.TeenDuration + pet.AdultDuration - time.Nanosecond), pet.StageAdult},
+		"exactly at dying":              {born.Add(pet.EggDuration + pet.BabyDuration + pet.ChildDuration + pet.TeenDuration + pet.AdultDuration), pet.StageDeath},
+		"well after dying, still Death": {born.Add(pet.EggDuration + pet.BabyDuration + pet.ChildDuration + pet.TeenDuration + pet.AdultDuration + 24*time.Hour), pet.StageDeath},
 	}
 
 	for name, tt := range tests {
@@ -183,6 +208,22 @@ func TestStageHatched(t *testing.T) {
 	assert.True(t, pet.StageBaby.Hatched())
 	assert.True(t, pet.StageChild.Hatched())
 	assert.True(t, pet.StageTeen.Hatched())
+	assert.True(t, pet.StageAdult.Hatched())
+	// A Pet that has reached Death is still Hatched — it did, historically —
+	// even though Care actions are no longer available; see
+	// TestStageCareAvailable.
+	assert.True(t, pet.StageDeath.Hatched())
+}
+
+func TestStageCareAvailable(t *testing.T) {
+	t.Parallel()
+
+	assert.False(t, pet.StageEgg.CareAvailable())
+	assert.True(t, pet.StageBaby.CareAvailable())
+	assert.True(t, pet.StageChild.CareAvailable())
+	assert.True(t, pet.StageTeen.CareAvailable())
+	assert.True(t, pet.StageAdult.CareAvailable())
+	assert.False(t, pet.StageDeath.CareAvailable())
 }
 
 func TestStageString(t *testing.T) {
@@ -192,6 +233,8 @@ func TestStageString(t *testing.T) {
 	assert.Equal(t, "Baby", pet.StageBaby.String())
 	assert.Equal(t, "Child", pet.StageChild.String())
 	assert.Equal(t, "Teen", pet.StageTeen.String())
+	assert.Equal(t, "Adult", pet.StageAdult.String())
+	assert.Equal(t, "Death", pet.StageDeath.String())
 }
 
 func TestAgeIsElapsedSinceCreation(t *testing.T) {
@@ -200,5 +243,17 @@ func TestAgeIsElapsedSinceCreation(t *testing.T) {
 	born := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	p := pet.New(born)
 
-	assert.Equal(t, 90*time.Minute, p.Age(born.Add(90*time.Minute)))
+	assert.Equal(t, 5*time.Minute, p.Age(born.Add(5*time.Minute)))
+}
+
+func TestAgeFreezesAtDeath(t *testing.T) {
+	t.Parallel()
+
+	born := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	p := pet.New(born)
+
+	deathAge := pet.EggDuration + pet.BabyDuration + pet.ChildDuration + pet.TeenDuration + pet.AdultDuration
+
+	assert.Equal(t, deathAge, p.Age(born.Add(deathAge)), "Age at the exact moment of death should be the fixed death age")
+	assert.Equal(t, deathAge, p.Age(born.Add(deathAge+7*24*time.Hour)), "Age should stay frozen long after death, not keep climbing")
 }

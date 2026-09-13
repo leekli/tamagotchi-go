@@ -20,9 +20,12 @@ const (
 	// StageTeen is the Pet's stage once it has spent ChildDuration as a Child.
 	StageTeen
 	// StageAdult is the Pet's stage once it has spent TeenDuration as a
-	// Teen. It is the last Stage: the Pet stops growing further once it
-	// reaches it.
+	// Teen. The Pet stops growing further once it reaches it.
 	StageAdult
+	// StageDeath is the Pet's stage once it has spent AdultDuration as an
+	// Adult. It is the true last Stage: there is no Stage after it, and no
+	// duration governing how long it lasts.
+	StageDeath
 )
 
 const (
@@ -76,6 +79,14 @@ const (
 	// patient single session. Don't "correct" this back to real-hardware
 	// timing.
 	TeenDuration = 15 * time.Minute
+
+	// AdultDuration is how long the Pet stays an Adult before it dies, once
+	// it has grown into one. Deliberately longer than the growth-stage
+	// durations before it, since Adult is meant to be lived in for a while,
+	// not rushed through — but still a fixed, short-session-friendly number,
+	// not the original hardware's much longer real-world lifespans. Don't
+	// "correct" this back to real-hardware timing.
+	AdultDuration = 20 * time.Minute
 
 	// HungerDecayInterval is the wall-clock duration per one-point Hunger
 	// Decay step. Deliberately on the order of single-digit minutes, not the
@@ -153,6 +164,8 @@ func New(now time.Time) Pet {
 func (p Pet) Stage(now time.Time) Stage {
 	age := now.Sub(p.CreatedAt)
 	switch {
+	case age >= EggDuration+BabyDuration+ChildDuration+TeenDuration+AdultDuration:
+		return StageDeath
 	case age >= EggDuration+BabyDuration+ChildDuration+TeenDuration:
 		return StageAdult
 	case age >= EggDuration+BabyDuration+ChildDuration:
@@ -166,11 +179,17 @@ func (p Pet) Stage(now time.Time) Stage {
 	}
 }
 
-// Hatched reports whether s is any Stage other than Egg. It is the single
-// condition governing whether the Next Screen's icon bar and Care actions
-// are available, so a future additional Stage doesn't require re-auditing
-// every comparison against a specific Stage value.
+// Hatched reports whether s is any Stage other than Egg. Kept separate from
+// CareAvailable: a Pet that has reached Death is still Hatched — it did,
+// historically — even though Care actions are no longer available.
 func (s Stage) Hatched() bool { return s != StageEgg }
+
+// CareAvailable reports whether Care actions can currently be taken: any
+// Hatched Stage except Death. It is the single condition governing whether
+// the Next Screen's icon bar and Care actions are available, so a future
+// additional terminal Stage doesn't require re-auditing every comparison
+// against a specific Stage value.
+func (s Stage) CareAvailable() bool { return s.Hatched() && s != StageDeath }
 
 // String returns Stage's display name, used by the Next Screen's on-screen
 // Stage label.
@@ -184,13 +203,22 @@ func (s Stage) String() string {
 		return "Teen"
 	case StageAdult:
 		return "Adult"
+	case StageDeath:
+		return "Death"
 	default:
 		return "Egg"
 	}
 }
 
-// Age reports how long the Pet has been alive as of now.
+// Age reports how long the Pet has been alive as of now. Once the Pet has
+// reached Death, Age stops advancing and reports the fixed elapsed time at
+// which death occurs — every earlier Stage's duration summed, plus
+// AdultDuration — rather than continuing to climb, since nothing about a
+// dead Pet keeps changing.
 func (p Pet) Age(now time.Time) time.Duration {
+	if p.Stage(now) == StageDeath {
+		return EggDuration + BabyDuration + ChildDuration + TeenDuration + AdultDuration
+	}
 	return now.Sub(p.CreatedAt)
 }
 
