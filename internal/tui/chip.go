@@ -12,8 +12,14 @@ import (
 // into three bands so the change is legible without relying on colour
 // blending. This is the shared timing behind every pulsing prompt in the
 // app — previously duplicated between the Welcome Screen's begin prompt and
-// the Next Screen's restart prompt.
+// the Next Screen's restart prompt. A non-positive framesPerPulse — not
+// reachable from any call site in this app today, but this is an exported
+// function any future caller can reach with an unvalidated value — reports
+// the dim floor rather than dividing by zero.
 func PulseLevel(frame, framesPerPulse int) int {
+	if framesPerPulse <= 0 {
+		return 0
+	}
 	phase := float64(frame%framesPerPulse) / float64(framesPerPulse)
 	switch v := anim.Pulse(phase); {
 	case v < 1.0/3.0:

@@ -58,21 +58,44 @@ func (p Panel) Render(content string) string {
 	}
 
 	lines := strings.Split(box, "\n")
-	if len(lines) == 0 {
-		return box
-	}
 	lines[0] = lipgloss.NewStyle().Foreground(p.Border).Render(p.topBorderLine())
 	return strings.Join(lines, "\n")
 }
 
 // topBorderLine builds the plain-text top border with Caption spliced in
 // between a dash and a space on each side, e.g. "╭─ PET ──────────╮" —
-// always exactly Width runes, so it lines up with every other border row.
+// always exactly Width runes, so it lines up with every other border row
+// even if Caption is too long to leave room for any dashes at all (it is
+// truncated first, rather than ever widening the line past Width). Its
+// corner and fill runes come from the same RoundedBorder Lip Gloss uses to
+// build the rest of the box, so the two can never drift apart.
 func (p Panel) topBorderLine() string {
-	prefix := "─ " + p.Caption + " "
-	dashes := p.Width - 2 - lipgloss.Width(prefix)
+	border := lipgloss.RoundedBorder()
+	avail := p.Width - lipgloss.Width(border.TopLeft) - lipgloss.Width(border.TopRight)
+
+	prefix := border.Top + " " + p.Caption + " "
+	if w := lipgloss.Width(prefix); w > avail {
+		prefix = truncateToWidth(prefix, avail)
+	}
+
+	dashes := avail - lipgloss.Width(prefix)
 	if dashes < 0 {
 		dashes = 0
 	}
-	return "╭" + prefix + strings.Repeat("─", dashes) + "╮"
+	return border.TopLeft + prefix + strings.Repeat(border.Top, dashes) + border.TopRight
+}
+
+// truncateToWidth returns the longest leading-rune prefix of s whose display
+// width is at most w. s is assumed to contain only single-width runes (true
+// of every caption and border glyph this function is used for), so a rune
+// count doubles as a width count here.
+func truncateToWidth(s string, w int) string {
+	if w <= 0 {
+		return ""
+	}
+	runes := []rune(s)
+	if len(runes) <= w {
+		return s
+	}
+	return string(runes[:w])
 }

@@ -43,6 +43,20 @@ func TestPulseLevelPeaksMidPulse(t *testing.T) {
 	assert.Equal(t, 2, tui.PulseLevel(testFramesPerPulse/2, testFramesPerPulse), "and is brightest halfway through")
 }
 
+// TestPulseLevelNeverDividesByZero guards PulseLevel's exported contract:
+// unlike its private predecessors (each called from exactly one place with
+// a fixed non-zero constant), any future caller can reach this function
+// with an unvalidated framesPerPulse, so a non-positive value must degrade
+// to the dim floor rather than panic.
+func TestPulseLevelNeverDividesByZero(t *testing.T) {
+	t.Parallel()
+
+	assert.NotPanics(t, func() {
+		assert.Equal(t, 0, tui.PulseLevel(5, 0))
+		assert.Equal(t, 0, tui.PulseLevel(5, -1))
+	})
+}
+
 // chipStyles builds a throwaway dim/mid/bright style triple sharing one
 // constant background, the shape every real chip style set follows: only the
 // foreground differs between pulse levels.

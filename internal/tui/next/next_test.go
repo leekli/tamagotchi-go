@@ -265,26 +265,12 @@ func TestViewAtDeathShowsGravestoneAndHidesCareUI(t *testing.T) {
 }
 
 // deathTopBorderWidth returns the rune width of the Death panel's top
-// border row, mirroring petAndStatsTopBorderWidths' rune-safe approach.
+// border row.
 func deathTopBorderWidth(t *testing.T, view string) int {
 	t.Helper()
-	for _, line := range strings.Split(stripANSI(view), "\n") {
-		runes := []rune(line)
-		start, end := -1, -1
-		for i, r := range runes {
-			if r == '╭' {
-				start = i
-			}
-			if r == '╮' {
-				end = i
-			}
-		}
-		if start >= 0 && end > start {
-			return end - start + 1
-		}
-	}
-	t.Fatal("no Death panel top border found")
-	return 0
+	widths := topBorderCornerWidths(t, view)
+	require.Len(t, widths, 1, "expected exactly one top border on the Death screen")
+	return widths[0]
 }
 
 func TestDeathPanelHasItsFixedDimensionsAndNoCaption(t *testing.T) {
@@ -624,11 +610,13 @@ func TestPetAndStatsPanelsRenderAsBorderedBoxesWithCaptions(t *testing.T) {
 	assert.Contains(t, view, "╰")
 }
 
-// petAndStatsTopBorderWidths returns the rune widths of the PET and STATS
-// panels' top border rows, in that left-to-right order, so tests can assert
-// on the fixed dimensions from docs/adr/0007 without depending on
-// lipgloss.Width's byte-vs-rune handling of the multi-byte border glyphs.
-func petAndStatsTopBorderWidths(t *testing.T, view string) (petW, statsW int) {
+// topBorderCornerWidths scans view for the first row whose ╭/╮ corners
+// pair up evenly, and returns the rune width of each ╭...╮ span found on
+// it, left to right: one width for a single Panel's top border row, or
+// several for Panels sharing one row side by side (e.g. PET beside STATS).
+// Runes, not lipgloss.Width, measure the span: the border glyphs are
+// multi-byte, so a byte-based measure would overcount it.
+func topBorderCornerWidths(t *testing.T, view string) []int {
 	t.Helper()
 	for _, line := range strings.Split(stripANSI(view), "\n") {
 		runes := []rune(line)
@@ -638,12 +626,26 @@ func petAndStatsTopBorderWidths(t *testing.T, view string) (petW, statsW int) {
 				corners = append(corners, i)
 			}
 		}
-		if len(corners) == 4 {
-			return corners[1] - corners[0] + 1, corners[3] - corners[2] + 1
+		if len(corners) == 0 || len(corners)%2 != 0 {
+			continue
 		}
+		widths := make([]int, 0, len(corners)/2)
+		for i := 0; i < len(corners); i += 2 {
+			widths = append(widths, corners[i+1]-corners[i]+1)
+		}
+		return widths
 	}
-	t.Fatal("no row with both panels' top borders found")
-	return 0, 0
+	t.Fatal("no row with matched top-border corners found")
+	return nil
+}
+
+// petAndStatsTopBorderWidths returns the rune widths of the PET and STATS
+// panels' top border rows, in that left-to-right order.
+func petAndStatsTopBorderWidths(t *testing.T, view string) (petW, statsW int) {
+	t.Helper()
+	widths := topBorderCornerWidths(t, view)
+	require.Len(t, widths, 2, "expected exactly PET and STATS panels' top borders on one row")
+	return widths[0], widths[1]
 }
 
 func TestPetAndStatsPanelsHaveTheirFixedWidths(t *testing.T) {

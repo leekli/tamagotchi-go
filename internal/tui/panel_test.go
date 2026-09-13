@@ -131,6 +131,20 @@ func TestPanelWithACaptionSplicesItIntoTheTopBorderOnly(t *testing.T) {
 	}
 }
 
+// TestPanelTruncatesACaptionTooLongToFit proves the top border row never
+// exceeds Width, even when Caption alone (plus its surrounding dash and
+// space) would otherwise overflow it — the exact-width guarantee must hold
+// for every Panel property, not just its content.
+func TestPanelTruncatesACaptionTooLongToFit(t *testing.T) {
+	p := tui.Panel{Width: 12, Height: 5, Caption: "WAY TOO LONG A CAPTION", PaddingX: 1, PaddingY: 1, Border: panelBorder}
+	rendered := p.Render("x")
+	lines := strings.Split(rendered, "\n")
+	require.Len(t, lines, 5)
+	for i, line := range lines {
+		assert.Equal(t, 12, lipgloss.Width(line), "line %d width", i)
+	}
+}
+
 func TestPanelCaptionNeverChangesOverallDimensions(t *testing.T) {
 	plain := tui.Panel{Width: 24, Height: 7, PaddingX: 1, PaddingY: 1, Border: panelBorder}
 	captioned := tui.Panel{Width: 24, Height: 7, Caption: "STATS", PaddingX: 1, PaddingY: 1, Border: panelBorder}
