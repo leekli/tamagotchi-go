@@ -6,21 +6,68 @@ import (
 	"github.com/leekli/tamagotchi-go/internal/tui"
 )
 
+// petPanelWidth/Height and statsPanelWidth/Height are the Next Screen's PET
+// and STATS panels' fixed outer dimensions (border and padding included),
+// per docs/adr/0007: petPanel is sized to Adult's art (the widest of any
+// Stage, 14 columns); statsPanel to the Hunger/Happiness Meter row (19
+// characters, e.g. "Happiness  ▓▓▓▓ 4/4"). panelGap is the fixed spacing
+// between them when shown side by side.
+const (
+	petPanelWidth  = 18
+	petPanelHeight = 10
+
+	statsPanelWidth  = 23
+	statsPanelHeight = 10
+
+	panelGap = "  "
+
+	// deathPanelWidth/Height is the Death panel's fixed outer size, per
+	// docs/adr/0007: driven by the Restart prompt's 39-character text, and
+	// padded by one extra row so its total height matches the hatched
+	// composite's (petPanelHeight + gap + Icon bar area), rather than
+	// leaving a one-row discrepancy between mutually exclusive states.
+	deathPanelWidth  = 43
+	deathPanelHeight = 15
+
+	// tabFieldWidth is a tab's own label field width, sized to the longest
+	// label across both the Feed/Play/Clean and Meal/Snack menus ("Clean"/
+	// "Snack", 5 characters). tabWidth/tabHeight are the resulting fixed
+	// outer size of every tab (border and 1-column horizontal padding, no
+	// vertical padding), and iconRowWidth is the Icon bar's fixed total row
+	// width, shared by both menus so switching between them never shifts
+	// anything else on screen — all per docs/adr/0007.
+	tabFieldWidth = 5
+	tabWidth      = 9
+	tabHeight     = 3
+	iconRowWidth  = 31
+
+	// tabGap is the fixed spacing between adjacent tabs in the Icon bar.
+	tabGap = "  "
+)
+
 // styles holds the Lip Gloss styles the Next Screen paints with, derived
 // from the shared palette rather than inventing a new colour scheme.
 type styles struct {
-	art          lipgloss.Style // the Pet's Egg/Baby/Child/Teen art
-	stageLabel   lipgloss.Style // the Stage label ("Egg"/"Baby"/"Child"/"Teen")
-	meter        lipgloss.Style // Hunger/Happiness pip meters
-	info         lipgloss.Style // Age and Weight
-	mess         lipgloss.Style // the Mess indicator glyph
-	icon         lipgloss.Style // an unselected icon-bar entry
-	iconSelected lipgloss.Style // the currently selected icon-bar entry
-	flourish     lipgloss.Style // a Care action's text feedback
+	petPanel   tui.Panel // frames the Pet's art and Stage label
+	statsPanel tui.Panel // frames Hunger/Happiness/Mess/Age/Weight
+	deathPanel tui.Panel // the single, uncaptioned panel shown once the Pet has died
 
-	// restartDim/Mid/Hi are the restart prompt's three pulse levels, shown
-	// once the Pet has reached Death — the same dim -> mid -> bright
-	// progression the Welcome Screen's begin prompt already uses.
+	art        lipgloss.Style // the Pet's Egg/Baby/Child/Teen art
+	stageLabel lipgloss.Style // the Stage label ("Egg"/"Baby"/"Child"/"Teen")
+	meterGood  lipgloss.Style // Meter grading: 3-4 of pet.MaxStat
+	meterFair  lipgloss.Style // Meter grading: 2
+	meterLow   lipgloss.Style // Meter grading: 0-1
+	info       lipgloss.Style // Age and Weight
+	mess       lipgloss.Style // the Mess indicator glyph
+
+	tabBorder   lipgloss.AdaptiveColor // every tab's border, selected or not
+	tabNormal   lipgloss.Style         // an unselected tab's label
+	tabSelected lipgloss.Style         // the currently selected tab's label
+	flourish    lipgloss.Style         // a Care action's text feedback
+
+	// restartDim/Mid/Hi are the restart chip's three pulse levels — the same
+	// shared chip the Welcome Screen's begin prompt uses, sharing a constant
+	// Accent background and differing only in foreground.
 	restartDim lipgloss.Style
 	restartMid lipgloss.Style
 	restartHi  lipgloss.Style
@@ -28,16 +75,27 @@ type styles struct {
 
 func newStyles(p tui.Palette) styles {
 	return styles{
-		art:          lipgloss.NewStyle().Foreground(p.Accent),
-		stageLabel:   lipgloss.NewStyle().Foreground(p.Dim),
-		meter:        lipgloss.NewStyle().Foreground(p.Screen),
-		info:         lipgloss.NewStyle().Foreground(p.Dim),
-		mess:         lipgloss.NewStyle().Foreground(p.Dim),
-		icon:         lipgloss.NewStyle().Foreground(p.Dim),
-		iconSelected: lipgloss.NewStyle().Foreground(p.Accent).Bold(true),
-		flourish:     lipgloss.NewStyle().Foreground(p.Highlight),
-		restartDim:   lipgloss.NewStyle().Foreground(p.Dim),
-		restartMid:   lipgloss.NewStyle().Foreground(p.Screen),
-		restartHi:    lipgloss.NewStyle().Foreground(p.Highlight).Bold(true),
+		petPanel:   tui.Panel{Width: petPanelWidth, Height: petPanelHeight, Caption: "PET", PaddingX: 1, PaddingY: 1, Border: p.Dim},
+		statsPanel: tui.Panel{Width: statsPanelWidth, Height: statsPanelHeight, Caption: "STATS", PaddingX: 1, PaddingY: 1, Border: p.Dim},
+		deathPanel: tui.Panel{Width: deathPanelWidth, Height: deathPanelHeight, PaddingX: 1, PaddingY: 1, Border: p.Dim},
+
+		art:        lipgloss.NewStyle().Foreground(p.Accent),
+		stageLabel: lipgloss.NewStyle().Foreground(p.Dim),
+		meterGood:  lipgloss.NewStyle().Foreground(p.Screen),
+		meterFair:  lipgloss.NewStyle().Foreground(p.Amber),
+		meterLow:   lipgloss.NewStyle().Foreground(p.Danger),
+		info:       lipgloss.NewStyle().Foreground(p.Dim),
+		mess:       lipgloss.NewStyle().Foreground(p.Danger),
+
+		// A selected tab shares the exact "this is the pressable thing"
+		// treatment the chip uses: a constant Accent fill and OnAccent text.
+		tabBorder:   p.Dim,
+		tabNormal:   lipgloss.NewStyle().Foreground(p.Dim),
+		tabSelected: lipgloss.NewStyle().Background(p.Accent).Foreground(p.OnAccent).Bold(true),
+		flourish:    lipgloss.NewStyle().Foreground(p.Highlight),
+
+		restartDim: lipgloss.NewStyle().Background(p.Accent).Foreground(p.Dim),
+		restartMid: lipgloss.NewStyle().Background(p.Accent).Foreground(p.Screen),
+		restartHi:  lipgloss.NewStyle().Background(p.Accent).Foreground(p.OnAccent).Bold(true),
 	}
 }

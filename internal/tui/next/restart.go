@@ -3,7 +3,6 @@ package next
 import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	zone "github.com/lrstanley/bubblezone"
 
 	"github.com/leekli/tamagotchi-go/internal/anim"
@@ -25,42 +24,9 @@ const restartPromptText = "Press Enter or click to hatch a new Egg"
 // restartFramesPerPulse mirrors the Welcome Screen begin prompt's pulse
 // timing exactly — one full dim -> bright -> dim cycle per second — but is
 // kept local to this package since Screens never import one another
-// (ADR-0003).
+// (ADR-0003). Only the timing constant is local; the pulse logic and
+// rendering are the shared tui.PulseLevel/tui.RenderChip.
 const restartFramesPerPulse = anim.FPS
-
-// restartPromptLevel maps frame to a brightness step: 0 dim, 1 mid, 2
-// bright. Same raised-cosine pulse, quantised the same way, as the Welcome
-// Screen's begin prompt.
-func restartPromptLevel(frame int) int {
-	phase := float64(frame%restartFramesPerPulse) / float64(restartFramesPerPulse)
-	switch v := anim.Pulse(phase); {
-	case v < 1.0/3.0:
-		return 0
-	case v < 2.0/3.0:
-		return 1
-	default:
-		return 2
-	}
-}
-
-// renderRestartPrompt styles the restart prompt for the given frame and
-// wraps it in its bubblezone marker, so a click can be tested against
-// exactly the prompt's cells.
-func renderRestartPrompt(frame int, dim, mid, bright lipgloss.Style) string {
-	style := dim
-	switch restartPromptLevel(frame) {
-	case 1:
-		style = mid
-	case 2:
-		style = bright
-	}
-
-	rendered := style.Render(restartPromptText)
-	if zone.DefaultManager == nil {
-		return rendered
-	}
-	return zone.Mark(RestartZoneID, rendered)
-}
 
 // isRestartClick reports whether msg is a left press inside the restart
 // prompt's zone, the same nil-safe pattern welcome.isBeginClick uses.

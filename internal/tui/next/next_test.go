@@ -264,6 +264,71 @@ func TestViewAtDeathShowsGravestoneAndHidesCareUI(t *testing.T) {
 	assert.NotContains(t, view, "Clean", "the icon bar should not show once dead")
 }
 
+// deathTopBorderWidth returns the rune width of the Death panel's top
+// border row.
+func deathTopBorderWidth(t *testing.T, view string) int {
+	t.Helper()
+	widths := topBorderCornerWidths(t, view)
+	require.Len(t, widths, 1, "expected exactly one top border on the Death screen")
+	return widths[0]
+}
+
+func TestDeathPanelHasItsFixedDimensionsAndNoCaption(t *testing.T) {
+	t.Parallel()
+
+	view := stripANSI(deathScreen(t, pet.New(born), &fakeStore{}).View())
+	require.Contains(t, view, "╭")
+
+	assert.Equal(t, 43, deathTopBorderWidth(t, view), "Death panel width per ADR-0007")
+
+	lineCount := 0
+	inPanel := false
+	for _, line := range strings.Split(view, "\n") {
+		if strings.Contains(line, "╭") {
+			inPanel = true
+		}
+		if inPanel {
+			lineCount++
+		}
+		if strings.Contains(line, "╰") {
+			break
+		}
+	}
+	assert.Equal(t, 15, lineCount, "Death panel height per ADR-0007")
+
+	for _, line := range strings.Split(view, "\n") {
+		if strings.Contains(line, "╭") {
+			assert.NotRegexp(t, `[A-Za-z]`, line, "the Death panel is the Screen's sole panel and should carry no caption")
+		}
+	}
+}
+
+func TestRestartPromptIsAPulsingChip(t *testing.T) {
+	t.Parallel()
+
+	deathAt := born.Add(pet.EggDuration + pet.BabyDuration + pet.ChildDuration + pet.TeenDuration + pet.AdultDuration)
+	s := deathScreen(t, pet.New(born), &fakeStore{})
+	lineAt := func(s tui.Screen) string {
+		for _, l := range strings.Split(s.View(), "\n") {
+			if strings.Contains(l, "hatch a new Egg") {
+				return l
+			}
+		}
+		return ""
+	}
+
+	first := lineAt(s)
+	require.NotEmpty(t, first)
+	changed := false
+	for i := 0; i < 15 && !changed; i++ {
+		s = advanceAnim(t, s, deathAt, 1)
+		if lineAt(s) != first {
+			changed = true
+		}
+	}
+	assert.True(t, changed, "the restart chip should pulse over about a second")
+}
+
 func TestAgeInfoLineFreezesAtDeath(t *testing.T) {
 	t.Parallel()
 
@@ -472,18 +537,18 @@ func TestViewShowsTheStageLabelForEggBabyChildTeenAdultAndDeath(t *testing.T) {
 	assert.Contains(t, stripANSI(s.View()), "Death", "should show the Death label once the Pet has died")
 }
 
-func TestHungerAndHappinessMetersShowTheRightPips(t *testing.T) {
+func TestHungerAndHappinessMetersShowTheRightGradedBar(t *testing.T) {
 	t.Parallel()
 
 	tests := map[string]struct {
 		value int
 		want  string
 	}{
-		"empty": {0, "[----]"},
-		"one":   {1, "[*---]"},
-		"half":  {2, "[**--]"},
-		"three": {3, "[***-]"},
-		"full":  {4, "[****]"},
+		"empty": {0, "░░░░ 0/4"},
+		"one":   {1, "▓░░░ 1/4"},
+		"half":  {2, "▓▓░░ 2/4"},
+		"three": {3, "▓▓▓░ 3/4"},
+		"full":  {4, "▓▓▓▓ 4/4"},
 	}
 
 	for name, tt := range tests {
@@ -499,6 +564,114 @@ func TestHungerAndHappinessMetersShowTheRightPips(t *testing.T) {
 			assert.Contains(t, view, tt.want)
 		})
 	}
+}
+
+// TestMeterColourGradesAtEachBoundary proves the Hunger Meter's colour
+// changes at the exact 3-4/2/0-1 boundaries against pet.MaxStat, not just
+// its segment count — the ANSI codes immediately preceding the bar text
+// must differ once the value crosses a grading boundary.
+func TestMeterColourGradesAtEachBoundary(t *testing.T) {
+	t.Parallel()
+
+	// colourCodeBefore returns the SGR escape sequence immediately before
+	// substr in s, i.e. the style applied to it.
+	colourCodeBefore := func(t *testing.T, s, substr string) string {
+		t.Helper()
+		idx := strings.Index(s, substr)
+		require.GreaterOrEqual(t, idx, 0, "expected to find %q", substr)
+		matches := ansiSeq.FindAllString(s[:idx], -1)
+		require.NotEmpty(t, matches, "expected a colour code before %q", substr)
+		return matches[len(matches)-1]
+	}
+
+	viewAtHunger := func(t *testing.T, value int) string {
+		t.Helper()
+		p := pet.New(born)
+		p.Hunger = value
+		return sizedScreen(t, p, &fakeStore{}).View() // not stripped: colour is what's under test
+	}
+
+	good := colourCodeBefore(t, viewAtHunger(t, 4), "▓▓▓▓ 4/4")
+	stillGood := colourCodeBefore(t, viewAtHunger(t, 3), "▓▓▓░ 3/4")
+	fair := colourCodeBefore(t, viewAtHunger(t, 2), "▓▓░░ 2/4")
+	low := colourCodeBefore(t, viewAtHunger(t, 1), "▓░░░ 1/4")
+
+	assert.Equal(t, good, stillGood, "3 and 4 should grade identically as good")
+	assert.NotEqual(t, good, fair, "good and fair should carry different colour codes")
+	assert.NotEqual(t, fair, low, "fair and low should carry different colour codes")
+}
+
+func TestPetAndStatsPanelsRenderAsBorderedBoxesWithCaptions(t *testing.T) {
+	t.Parallel()
+
+	view := stripANSI(babyScreen(t, pet.New(born), &fakeStore{}).View())
+	assert.Contains(t, view, "╭─ PET ")
+	assert.Contains(t, view, "╭─ STATS ")
+	assert.Contains(t, view, "╰")
+}
+
+// topBorderCornerWidths scans view for the first row whose ╭/╮ corners
+// pair up evenly, and returns the rune width of each ╭...╮ span found on
+// it, left to right: one width for a single Panel's top border row, or
+// several for Panels sharing one row side by side (e.g. PET beside STATS).
+// Runes, not lipgloss.Width, measure the span: the border glyphs are
+// multi-byte, so a byte-based measure would overcount it.
+func topBorderCornerWidths(t *testing.T, view string) []int {
+	t.Helper()
+	for _, line := range strings.Split(stripANSI(view), "\n") {
+		runes := []rune(line)
+		var corners []int
+		for i, r := range runes {
+			if r == '╭' || r == '╮' {
+				corners = append(corners, i)
+			}
+		}
+		if len(corners) == 0 || len(corners)%2 != 0 {
+			continue
+		}
+		widths := make([]int, 0, len(corners)/2)
+		for i := 0; i < len(corners); i += 2 {
+			widths = append(widths, corners[i+1]-corners[i]+1)
+		}
+		return widths
+	}
+	t.Fatal("no row with matched top-border corners found")
+	return nil
+}
+
+// petAndStatsTopBorderWidths returns the rune widths of the PET and STATS
+// panels' top border rows, in that left-to-right order.
+func petAndStatsTopBorderWidths(t *testing.T, view string) (petW, statsW int) {
+	t.Helper()
+	widths := topBorderCornerWidths(t, view)
+	require.Len(t, widths, 2, "expected exactly PET and STATS panels' top borders on one row")
+	return widths[0], widths[1]
+}
+
+func TestPetAndStatsPanelsHaveTheirFixedWidths(t *testing.T) {
+	t.Parallel()
+
+	for _, dims := range [][2]int{{80, 23}, {90, 24}, {120, 40}} {
+		s := babyScreen(t, pet.New(born), &fakeStore{})
+		s, _ = s.Update(tea.WindowSizeMsg{Width: dims[0], Height: dims[1]})
+		petW, statsW := petAndStatsTopBorderWidths(t, s.View())
+		assert.Equal(t, 18, petW, "PET panel width at %dx%d", dims[0], dims[1])
+		assert.Equal(t, 23, statsW, "STATS panel width at %dx%d", dims[0], dims[1])
+	}
+}
+
+// TestEggReservesTheSameFootprintAsAHatchedScreen proves Hatch does not
+// visibly resize the Screen: Egg's view has exactly as many lines as a
+// hatched (Baby) view, even though Egg has no Icon bar to show yet.
+func TestEggReservesTheSameFootprintAsAHatchedScreen(t *testing.T) {
+	t.Parallel()
+
+	lineCount := func(view string) int { return strings.Count(view, "\n") + 1 }
+
+	egg := sizedScreen(t, pet.New(born), &fakeStore{})
+	baby := babyScreen(t, pet.New(born), &fakeStore{})
+
+	assert.Equal(t, lineCount(baby.View()), lineCount(egg.View()))
 }
 
 func TestViewShowsAgeAndWeight(t *testing.T) {

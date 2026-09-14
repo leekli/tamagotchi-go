@@ -6,6 +6,7 @@
 package next
 
 import (
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -164,35 +165,53 @@ func (s *Screen) View() string {
 		frameArt, bob = alternatingPose(adultFrames, adultPoseFramesPerStep, s.frame), hatchedBob(s.frame)
 	}
 
+	petContent := lipgloss.JoinVertical(lipgloss.Center,
+		renderArtBox(frameArt, bob, s.styles.art),
+		renderStageLabel(stage, s.styles.stageLabel),
+	)
+
 	// The Mess line and the flourish line each always occupy a row, blank
 	// when absent, the same fixed-height discipline renderArtBox uses for
 	// the art (via artBoxHeight) — so a Mess appearing/clearing or a
 	// flourish showing/clearing never shifts the rest of the centred stack.
+	// The STATS panel's own fixed height (statsPanelHeight) backs this up
+	// regardless.
 	messLine := ""
 	if s.pet.HasMess(s.now) {
 		messLine = renderMessLine(s.styles.mess)
 	}
-
-	rows := []string{
-		renderArtBox(frameArt, bob, s.styles.art),
-		renderStageLabel(stage, s.styles.stageLabel),
+	statsContent := lipgloss.JoinVertical(lipgloss.Center,
 		messLine,
 		"",
-		renderMeter("Hunger", s.pet.Hunger, s.styles.meter),
-		renderMeter("Happiness", s.pet.Happiness, s.styles.meter),
+		renderMeter("Hunger", s.pet.Hunger, s.styles.meterGood, s.styles.meterFair, s.styles.meterLow),
+		renderMeter("Happiness", s.pet.Happiness, s.styles.meterGood, s.styles.meterFair, s.styles.meterLow),
 		"",
 		s.styles.info.Render(infoLine(s.pet, s.now)),
-	}
+	)
+
+	topRow := lipgloss.JoinHorizontal(lipgloss.Top,
+		s.styles.petPanel.Render(petContent),
+		panelGap,
+		s.styles.statsPanel.Render(statsContent),
+	)
+
+	rows := []string{topRow}
 	if stage.CareAvailable() {
-		menuRow := renderIconBar(s.selected, s.styles.icon, s.styles.iconSelected)
+		menuRow := renderIconBar(s.selected, s.styles.tabNormal, s.styles.tabSelected, s.styles.tabBorder)
 		if s.menu == menuFeedChoice {
-			menuRow = renderFeedChoice(s.feedSelected, s.styles.icon, s.styles.iconSelected)
+			menuRow = renderFeedChoice(s.feedSelected, s.styles.tabNormal, s.styles.tabSelected, s.styles.tabBorder)
 		}
 		flourishLine := ""
 		if s.flourish != "" {
 			flourishLine = s.styles.flourish.Render(s.flourish)
 		}
 		rows = append(rows, "", menuRow, flourishLine)
+	} else {
+		// Egg: no Icon bar yet, but the same rows (gap, the tab row's full
+		// height, flourish) are still reserved blank, so Hatch never
+		// visibly grows the screen.
+		blankMenuRow := strings.Repeat("\n", tabHeight-1)
+		rows = append(rows, "", blankMenuRow, "")
 	}
 
 	stack := lipgloss.JoinVertical(lipgloss.Center, rows...)
@@ -206,17 +225,24 @@ func (s *Screen) View() string {
 // died, so they are left out of this render path entirely rather than
 // hidden by a condition inside the shared one above.
 func (s *Screen) viewDeath() string {
-	rows := []string{
+	restartChip := tui.RenderChip(restartPromptText, s.frame, restartFramesPerPulse,
+		s.styles.restartDim, s.styles.restartMid, s.styles.restartHi, RestartZoneID)
+
+	content := lipgloss.JoinVertical(lipgloss.Center,
 		renderArtBox(deathArt, 0, s.styles.art),
 		renderStageLabel(pet.StageDeath, s.styles.stageLabel),
 		"",
 		s.styles.info.Render(infoLine(s.pet, s.now)),
 		"",
-		renderRestartPrompt(s.frame, s.styles.restartDim, s.styles.restartMid, s.styles.restartHi),
-	}
+		// One extra blank row of breathing room before Restart, so the
+		// Death panel's total height matches the hatched composite's
+		// (docs/adr/0007) rather than differing by one row.
+		"",
+		restartChip,
+	)
 
-	stack := lipgloss.JoinVertical(lipgloss.Center, rows...)
-	return lipgloss.Place(s.width, s.height, lipgloss.Center, lipgloss.Center, stack)
+	panel := s.styles.deathPanel.Render(content)
+	return lipgloss.Place(s.width, s.height, lipgloss.Center, lipgloss.Center, panel)
 }
 
 // Scrollable implements tui.Screen. The Next Screen is now authored to fit
