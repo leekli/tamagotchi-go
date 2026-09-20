@@ -7,10 +7,7 @@ Guidance for AI agents working in this repository. Humans should read
 ## What this project is
 
 A CLI/TUI game in the style of the original first-generation Tamagotchi toy
-(1996–1997), written in Go with the Bubble Tea / Charm ecosystem. It is built in
-phases (`docs/plan/`): Phase 1 is the scaffold and a functional-stub Welcome
-Screen; Phase 2 fills in the Welcome Screen's art and animation. Pet-care
-mechanics come later.
+(1996–1997), written in Go with the Bubble Tea / Charm ecosystem.
 
 ## Commands
 
@@ -106,6 +103,11 @@ wrong, fix the check and say why in the commit.
 
 Issues and specs live as GitHub issues in `leekli/tamagotchi-go`, managed via the
 `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`,
+`ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 
