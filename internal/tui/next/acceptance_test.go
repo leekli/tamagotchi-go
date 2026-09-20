@@ -1,6 +1,7 @@
 package next_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -586,10 +587,41 @@ func TestAcceptance_TheDeathPanelNamesTheCause(t *testing.T) {
 		assert.Contains(t, view, "hatch a new Egg")
 	})
 
+	t.Run("Neglect, when Care mistakes had shortened the Adult", func(t *testing.T) {
+		// Three mistakes: the Adult lasts 14 minutes, so the Pet dies at 54:30. Its
+		// record reaches 50 minutes, so the death falls inside the Beat's window.
+		p := pet.New(born)
+		p.CareMistakes = 3
+		last := born.Add(50 * time.Minute)
+		p.LastSeenAt, p.HappinessLastSeenAt, p.LastCleanedAt = last, last, last
+		diesAt := born.Add(54*time.Minute + 30*time.Second)
+		s := advanceAnim(t, sizedScreen(t, p, &fakeStore{}), diesAt, 1)
+		s, _ = s.Update(pet.BeatMsg{Time: diesAt})
+
+		view := visibleText(s.View())
+
+		assert.Contains(t, view, "Cause: Neglect")
+		assert.Contains(t, view, "Care mistakes: 3")
+	})
+
+	t.Run("every Death panel shows the tally, in its reserved row", func(t *testing.T) {
+		s := advanceAnim(t, sizedScreen(t, starvedPet(), &fakeStore{}), born.Add(22*time.Minute), 1)
+		s, _ = s.Update(pet.BeatMsg{Time: born.Add(22 * time.Minute)})
+		p := currentPet(t, s)
+		require.NotZero(t, p.CareMistakes, "sanity check: Happiness's neglected window earned a mistake before it starved")
+
+		assert.Contains(t, visibleText(s.View()), fmt.Sprintf("Care mistakes: %d", p.CareMistakes))
+		first, last := occupiedRows(t, s.View())
+		assert.Equal(t, envelopeHeight, last-first+1, "and the panel is still its fixed height")
+	})
+
 	t.Run("Old age, though never recorded (a save from before deaths were)", func(t *testing.T) {
 		s := deathScreen(t, pet.New(born), &fakeStore{})
 
-		assert.Contains(t, visibleText(s.View()), "Cause: Old age")
+		view := visibleText(s.View())
+
+		assert.Contains(t, view, "Cause: Old age")
+		assert.Contains(t, view, "Care mistakes: 0")
 	})
 
 	t.Run("no cause is shown while the Pet is alive", func(t *testing.T) {
@@ -706,6 +738,12 @@ func TestAcceptance_RestartAfterEveryCause(t *testing.T) {
 		"Sickness": func() pet.Pet {
 			p := pet.New(born).Advance(born.Add(30 * time.Minute)) // never cleaned: dies of Sickness at 18:00
 			require.Equal(t, pet.Sickness, p.Cause, "sanity check")
+			return p
+		}(),
+		"Neglect": func() pet.Pet {
+			p := pet.New(born)
+			p.CareMistakes = 3
+			p.DiedAt, p.Cause = born.Add(54*time.Minute+30*time.Second), pet.Neglect
 			return p
 		}(),
 	}

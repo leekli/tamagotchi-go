@@ -6,6 +6,7 @@
 package next
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -284,7 +285,7 @@ func (s *Screen) viewDeath() string {
 		"",
 		s.styles.info.Render(infoLine(s.pet, s.now)),
 		s.styles.info.Render("Cause: "+s.pet.CauseAt(s.now).String()),
-		"", // reserved: the Care mistake tally
+		s.styles.info.Render(fmt.Sprintf("Care mistakes: %d", s.pet.CareMistakes)),
 		"",
 		// One extra blank row of breathing room before Restart, so the
 		// Death panel's total height matches the hatched composite's

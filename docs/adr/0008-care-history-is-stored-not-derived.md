@@ -88,3 +88,24 @@ essentially the maintainer's own: any save more than an hour old was already dea
 of old age. The outcome is not destructive, since a Pet lives about an hour by
 design and Restart is one keypress. If the game is ever distributed to other
 players, revisit it then, with the schema bump and a real migration path.
+
+## Update: the tally shortens life, so the end of life is not fixed either
+
+Each Care mistake now shortens the Adult Stage, so when the Pet's life ends depends
+on the stored tally, which itself changes over time. `Stage`, `Age` and the search
+for a death all read the end from the tally, `lifespanEnd`, instead of a constant.
+The Adult always begins at the same instant; only its end moves, and never below
+`AdultMinDuration`, so the Pet is always seen as an Adult.
+
+This makes the tally's *timing* matter, not just its value: a mistake that lands
+after the shortened end has already passed must kill the Pet at the moment it is
+counted, never before it, or a Pet the player was still looking after would be
+found to have died in the past. So `Advance` cannot judge a window against its
+final tally. `advanceLiving` reports the instants at which it counted mistakes,
+and `lifespanDeath` walks the window one piece at a time between them, each with
+the tally as it stood there. A window holds at most two such instants (one per
+Stat, since no Care action can end a spell within it), so the walk is short. When
+the Pet dies, `Advance` re-advances only as far as that moment, so the tally on
+the Death panel includes the mistake that killed it and none that came after.
+A death that would come from the end of the Adult Stage is Neglect when any mistake
+is on the tally, and Old age when none is.

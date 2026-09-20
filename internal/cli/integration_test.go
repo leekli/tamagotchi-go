@@ -653,6 +653,20 @@ func TestAPetThatDiedWhileTheGameWasClosedShowsItsCauseAndRestarts(t *testing.T)
 			seed: func(now time.Time) pet.Pet { return pet.New(now.Add(-40 * time.Minute)) },
 			want: "Cause: Sickness",
 		},
+		// Three Care mistakes already on its saved tally, last seen at 50 minutes and
+		// left for two hours: its Adult lasts 14 minutes rather than 20, so it dies of
+		// Neglect at 54:30, a full 6 minutes before old age would have come.
+		"Neglect": {
+			seed: func(now time.Time) pet.Pet {
+				born := now.Add(-2 * time.Hour)
+				p := pet.New(born)
+				p.CareMistakes = 3
+				last := born.Add(50 * time.Minute)
+				p.LastSeenAt, p.HappinessLastSeenAt, p.LastCleanedAt = last, last, last
+				return p
+			},
+			want: "Cause: Neglect",
+		},
 		"Old age": {
 			seed: func(now time.Time) pet.Pet {
 				born := now.Add(-2 * time.Hour)

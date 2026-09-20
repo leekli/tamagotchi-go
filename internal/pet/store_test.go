@@ -214,6 +214,27 @@ func TestFileStoreRoundTripsASicknessDeath(t *testing.T) {
 	assert.Equal(t, pet.Sickness, got.CauseAt(born.Add(5*time.Hour)))
 }
 
+// TestFileStoreRoundTripsANeglectDeath: the fourth cause survives a save and load
+// by name, with the tally that shortened the life.
+func TestFileStoreRoundTripsANeglectDeath(t *testing.T) {
+	t.Parallel()
+
+	store := pet.NewFileStore(filepath.Join(t.TempDir(), "save.json"))
+	born := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	p := pet.New(born)
+	p.CareMistakes = 3
+	p.DiedAt, p.Cause = born.Add(54*time.Minute+30*time.Second), pet.Neglect
+
+	require.NoError(t, store.Save(p))
+	got, ok, err := store.Load()
+
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, pet.Neglect, got.Cause)
+	assert.Equal(t, 3, got.CareMistakes)
+	assert.Equal(t, pet.Neglect, got.CauseAt(born.Add(5*time.Hour)))
+}
+
 // TestFileStoreLoadOldSavePastItsAgeIsDeadOfOldAge: a save from before deaths
 // were recorded has no death fields. If it is past its age it is dead by the
 // age-based rule, and its cause reads as Old age, though nothing is recorded.
@@ -242,10 +263,11 @@ func TestFileStoreLoadOldSavePastItsAgeIsDeadOfOldAge(t *testing.T) {
 	assert.Equal(t, pet.NotDead, got.CauseAt(createdAt.Add(time.Minute)), "and alive before then")
 }
 
-// TestFileStoreLoadReadsAnUnknownCauseAsOldAge: a recorded death whose cause
-// cannot be read (a hand-edited or newer save file) can only be old age, so a
-// dead Pet is never shown without a reason.
-func TestFileStoreLoadReadsAnUnknownCauseAsOldAge(t *testing.T) {
+// TestFileStoreLoadReadsAnUnknownCauseAsTheAdultRunningOut: a recorded death whose
+// cause cannot be read (a hand-edited or newer save file) can only be its Adult
+// Stage running out, so a dead Pet is never shown without a reason: Old age when
+// no Care mistake had shortened it (as here, a save with none), Neglect if any had.
+func TestFileStoreLoadReadsAnUnknownCauseAsTheAdultRunningOut(t *testing.T) {
 	t.Parallel()
 
 	createdAt := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -699,4 +721,33 @@ func TestSaveCmdPersistsThroughTheStore(t *testing.T) {
 	_, ok, err := store.Load()
 	require.NoError(t, err)
 	assert.True(t, ok, "SaveCmd should have persisted the Pet")
+}
+
+// TestFileStoreLoadReadsAnUnknownCauseWithAMistakeTallyAsNeglect is the other half
+// of the case above: with mistakes on the tally the unreadable cause reads as
+// Neglect, not Old age.
+func TestFileStoreLoadReadsAnUnknownCauseWithAMistakeTallyAsNeglect(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "save.json")
+	createdAt := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	diedAt := createdAt.Add(50 * time.Minute)
+	body := `{
+		"schema_version": 1,
+		"created_at": "` + createdAt.Format(time.RFC3339Nano) + `",
+		"last_seen_at": "` + createdAt.Format(time.RFC3339Nano) + `",
+		"died_at": "` + diedAt.Format(time.RFC3339Nano) + `",
+		"cause_of_death": "???",
+		"care_mistakes": 2,
+		"hunger": 0,
+		"happiness": 0,
+		"weight": 2
+	}`
+	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
+
+	got, ok, err := pet.NewFileStore(path).Load()
+
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, pet.Neglect, got.CauseAt(diedAt.Add(time.Hour)))
 }

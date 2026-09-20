@@ -35,7 +35,7 @@ TUI framework.
 
 - A living, persisted Pet on the Next Screen: it's born an Egg, hatches into a
   Baby, grows into a Child, a Teen, and an Adult, and eventually dies of old
-  age, or sooner of starvation or untreated sickness if you neglect it — its
+  age, or sooner of neglect, starvation or untreated sickness — its
   current Stage always shown as a label beneath its art — while its
   Hunger and Happiness decay over real elapsed time, whether or not the game
   is running. State persists between runs (`internal/pet`). Once it has
@@ -55,15 +55,16 @@ TUI framework.
   while its Mess is still there falls Sick again a while later. A Sick Pet can
   still be fed and played with, but left Sick for eight minutes without a Cure
   it dies of Sickness.
-- Neglect is tracked behind the scenes: leave Hunger or Happiness at 0 for
-  longer than a short grace window and the Pet racks up a Care mistake (one per
-  Stat per Empty spell, on a lifetime tally that isn't shown to you). Refilling
+- Neglect has a cost. Leave Hunger or Happiness at 0 for longer than a short
+  grace window and the Pet racks up a Care mistake (one per Stat per Empty
+  spell, on a lifetime tally that stays hidden until the Pet dies). Refilling
   the Stat in time — a Meal for Hunger, a Snack or Play for Happiness — spares
-  you, and a Sick Pet's grace window is paused until you Cure it. The tally
-  isn't shown and has no consequence yet; it is groundwork for what neglect
-  will cost. What does have a cost already: a Pet whose Hunger stays at 0 for
-  ten minutes starves, even while Sick. One never cleaned dies of Sickness
-  first, at 18 minutes old.
+  you, and a Sick Pet's grace window is paused until you Cure it. Every mistake
+  shortens the Adult Stage by two minutes, down to five, so a badly looked-after
+  Pet lives a shorter life and dies of Neglect. Worse neglect kills sooner: a Pet
+  whose Hunger stays at 0 for ten minutes starves, even while Sick, and one never
+  cleaned dies of Sickness first, at 18 minutes old. The Death panel says which,
+  and how many Care mistakes the Pet had.
 - A screen-routed TUI that clears the terminal on entry and restores it on exit.
 - A hand-authored ASCII wordmark with a one-pass shine sweep, a wandering
   animated Character, and a pulsing begin prompt — all on a deterministic,
