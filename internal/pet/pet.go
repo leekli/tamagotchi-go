@@ -88,6 +88,17 @@ const (
 	// "correct" this back to real-hardware timing.
 	AdultDuration = 20 * time.Minute
 
+	// AdultMistakePenalty is how much each Care mistake shortens the Adult Stage,
+	// and so the Pet's life: the Adult lasts AdultDuration less this for every
+	// mistake on the tally, from any Stage, but never less than AdultMinDuration.
+	// Mistakes shorten only the Adult, so Baby, Child and Teen always take their
+	// full time. Don't "correct" this back to real-hardware timing.
+	AdultMistakePenalty = 2 * time.Minute
+
+	// AdultMinDuration is the shortest the Adult Stage can be shortened to, so
+	// however badly a Pet has been looked after the player always sees an Adult.
+	AdultMinDuration = 5 * time.Minute
+
 	// HungerDecayInterval is the wall-clock duration per one-point Hunger
 	// Decay step. Deliberately on the order of single-digit minutes, not the
 	// original hardware's hours: this is a CLI game played in short
@@ -233,7 +244,7 @@ func (p Pet) Stage(now time.Time) Stage {
 	}
 	age := now.Sub(p.CreatedAt)
 	switch {
-	case age >= EggDuration+BabyDuration+ChildDuration+TeenDuration+AdultDuration:
+	case !now.Before(p.lifespanEnd()):
 		return StageDeath
 	case age >= EggDuration+BabyDuration+ChildDuration+TeenDuration:
 		return StageAdult
@@ -281,16 +292,16 @@ func (s Stage) String() string {
 
 // Age reports how long the Pet has been alive as of now. Once the Pet has
 // reached Death, Age stops advancing and reports how long it lived: up to the
-// recorded moment of death, or, for a death that was never recorded, the fixed
-// elapsed time at which old age comes — every earlier Stage's duration summed,
-// plus AdultDuration — rather than continuing to climb, since nothing about a
-// dead Pet keeps changing.
+// recorded moment of death, or, for a death that was never recorded, the elapsed
+// time at which its Adult Stage ends — every earlier Stage's duration summed,
+// plus the Adult's, shortened by any Care mistakes — rather than continuing to
+// climb, since nothing about a dead Pet keeps changing.
 func (p Pet) Age(now time.Time) time.Duration {
 	if !p.DiedAt.IsZero() && !now.Before(p.DiedAt) {
 		return p.DiedAt.Sub(p.CreatedAt)
 	}
 	if p.Stage(now) == StageDeath {
-		return EggDuration + BabyDuration + ChildDuration + TeenDuration + AdultDuration
+		return p.lifespanEnd().Sub(p.CreatedAt)
 	}
 	return now.Sub(p.CreatedAt)
 }
@@ -312,13 +323,14 @@ func (p Pet) RecordedUntil() time.Time {
 
 // CauseAt reports why the Pet is dead as of now, or NotDead while it is alive. A
 // recorded death names its own cause; one that was never recorded (see Stage)
-// can only be old age.
+// can only be its Adult Stage running out: Neglect if Care mistakes had shortened
+// it, otherwise Old age.
 func (p Pet) CauseAt(now time.Time) CauseOfDeath {
 	switch {
 	case !p.DiedAt.IsZero() && !now.Before(p.DiedAt):
 		return p.Cause
 	case p.Stage(now) == StageDeath:
-		return OldAge
+		return lifespanCause(p.CareMistakes)
 	default:
 		return NotDead
 	}
@@ -371,9 +383,9 @@ func withLoadDefaults(p Pet) Pet {
 	// A negative tally can only come from a corrupted or hand-edited save file.
 	p.CareMistakes = max(p.CareMistakes, 0)
 	// A recorded death with no readable cause (a hand-edited or newer save file)
-	// can only be read as old age.
+	// can only be read as its Adult Stage running out.
 	if !p.DiedAt.IsZero() && p.Cause == NotDead {
-		p.Cause = OldAge
+		p.Cause = lifespanCause(p.CareMistakes)
 	}
 	return p
 }

@@ -138,11 +138,19 @@ func TestAdvanceScriptedTimelinesMatchOneLongCatchUp(t *testing.T) {
 	}
 	unchanged := func(p pet.Pet) pet.Pet { return p }
 
-	// Two Meals every 5 minutes for an hour: enough to keep Hunger up, so the Pet
-	// lives to its full age instead of starving.
-	var fedThroughout []careAction
-	for at := 5 * time.Minute; at <= 60*time.Minute; at += 5 * time.Minute {
-		fedThroughout = append(fedThroughout, namedAction("meal", at), namedAction("meal", at))
+	// Looking after the Pet every 4 minutes for an hour: a Clean (no Mess, so no
+	// Sickness), two Meals, and, if withPlay, two Plays too. Without Play Hunger never
+	// empties but Happiness does; with it neither does, so the Pet lives its whole
+	// life with no Care mistake at all.
+	careEveryFourMinutes := func(withPlay bool) []careAction {
+		var actions []careAction
+		for at := 4 * time.Minute; at <= 60*time.Minute; at += 4 * time.Minute {
+			actions = append(actions, namedAction("clean", at), namedAction("meal", at), namedAction("meal", at))
+			if withPlay {
+				actions = append(actions, namedAction("play", at), namedAction("play", at))
+			}
+		}
+		return actions
 	}
 
 	tests := map[string]struct {
@@ -220,10 +228,18 @@ func TestAdvanceScriptedTimelinesMatchOneLongCatchUp(t *testing.T) {
 			probes:  []time.Duration{17*time.Minute + 30*time.Second, 18*time.Minute + 30*time.Second, 21*time.Minute + 30*time.Second, 22*time.Minute + 30*time.Second, time.Hour},
 			actions: []careAction{namedAction("cure", 17*time.Minute+59*time.Second)},
 		},
-		"a Pet that lives its whole life and dies of old age": {
+		"a Pet cared for in every way but Play, whose life a Care mistake shortens": {
+			// Happiness empties at 12:00 and its window expires at 16:00: one mistake, so
+			// the Adult (from 40:30) lasts 18 minutes and the Pet dies of Neglect at 58:30
+			// instead of Old age at 60:30. Probes fall before, at and after each.
+			prepare: unchanged,
+			probes:  []time.Duration{15 * time.Minute, 17 * time.Minute, 58*time.Minute + 29*time.Second, 58*time.Minute + 31*time.Second, 61 * time.Minute},
+			actions: careEveryFourMinutes(false),
+		},
+		"a Pet that lives its whole life and dies at the end of its Adult Stage": {
 			prepare: func(p pet.Pet) pet.Pet { p.LastCleanedAt = born.Add(24 * time.Hour); return p },
 			probes:  []time.Duration{30 * time.Minute, 60 * time.Minute, 61 * time.Minute, 2 * time.Hour},
-			actions: fedThroughout,
+			actions: careEveryFourMinutes(true),
 		},
 		"a long absence": {
 			prepare: unchanged, probes: []time.Duration{20 * time.Minute, 6 * time.Hour},
@@ -271,7 +287,7 @@ type scenario struct {
 	probes  []time.Duration
 }
 
-func newScenario(seed uint64, born time.Time, lowStats bool, horizonSpan time.Duration) scenario {
+func newScenario(seed uint64, born time.Time, lowStats bool, horizonSpan time.Duration, adult ...bool) scenario {
 	// A fixed-seed PRNG, so a failing schedule reproduces exactly.
 	r := rand.New(rand.NewPCG(seed, seed^0x9e3779b97f4a7c15))
 
@@ -307,6 +323,14 @@ func newScenario(seed uint64, born time.Time, lowStats bool, horizonSpan time.Du
 	start.LastCleanedAt = born.Add(-time.Duration(r.Int64N(int64(pet.MessInterval - time.Minute))))
 	start.LastSeenAt = born.Add(-time.Duration(r.Int64N(int64(pet.HungerDecayInterval))))
 	start.HappinessProgress = time.Duration(r.Int64N(int64(pet.HappinessDecayInterval)))
+
+	// Optionally a Pet already well into its Teen years with a tally of mistakes, so
+	// that its shortened life ends inside the run. Drawn last, so the schedules of
+	// scenarios that do not ask for it are unchanged.
+	if len(adult) > 0 && adult[0] {
+		start.CreatedAt = born.Add(-38 * time.Minute)
+		start.CareMistakes = r.IntN(9)
+	}
 
 	return scenario{start: start, actions: actions, probes: probes}
 }
@@ -399,6 +423,53 @@ func TestAdvanceCareMistakesAreExactUnderRandomSchedules(t *testing.T) {
 	assert.GreaterOrEqual(t, pausedSpells.Load(), int64(30), "and some should be caught mid-pause, or the pausing is barely exercised")
 	assert.GreaterOrEqual(t, deaths.Load(), int64(30), "and some should end in a death, or recorded death is barely exercised")
 	assert.GreaterOrEqual(t, sicknessDeaths.Load(), int64(20), "and some of those should be of Sickness, or Sickness death is barely exercised")
+}
+
+// TestAdvanceLifespanShorteningIsExactUnderRandomSchedules is the same property
+// for lives cut short by Care mistakes. Every Pet starts already a Teen with a
+// tally of up to 8 mistakes, so that the shortened Adult ends inside the run, and
+// mistakes keep landing during it, so that some land after the shortened end and
+// kill at the moment they are counted, and some windows hold two. Whole-Pet
+// equality covers the death and the tally at it. The run counts what it saw, so it
+// cannot pass vacuously.
+func TestAdvanceLifespanShorteningIsExactUnderRandomSchedules(t *testing.T) {
+	t.Parallel()
+
+	born := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	var neglectDeaths, otherDeaths atomic.Int64
+
+	t.Run("seeds", func(t *testing.T) {
+		for seed := uint64(1); seed <= 300; seed++ {
+			t.Run(fmt.Sprintf("seed %d", seed), func(t *testing.T) {
+				t.Parallel()
+
+				sc := newScenario(seed, born, true, 30*time.Minute, true)
+				r := rand.New(rand.NewPCG(seed, seed+2))
+
+				oneLong := simulate(sc.start, born, sc.actions, sc.probes, 0)
+				switch oneLong[len(oneLong)-1].Cause {
+				case pet.Neglect:
+					neglectDeaths.Add(1)
+				case pet.NotDead, pet.OldAge:
+				default:
+					otherDeaths.Add(1)
+				}
+
+				for range 2 {
+					beat := beatSizes[r.IntN(len(beatSizes))]
+					assert.Equal(t, oneLong, simulate(sc.start, born, sc.actions, sc.probes, beat),
+						"beat %v, schedule %s, probes %v, start tally %d", beat, describe(sc.actions), sc.probes, sc.start.CareMistakes)
+				}
+			})
+		}
+	})
+
+	t.Logf("deaths: %d of Neglect, %d of other causes (of 300)", neglectDeaths.Load(), otherDeaths.Load())
+	assert.GreaterOrEqual(t, neglectDeaths.Load(), int64(100), "many lives should be cut short by mistakes, or shortening is barely exercised")
+	// Old age needs an empty tally, and almost every random Pet earns a mistake first,
+	// so it is covered by the well-cared timeline instead. What is checked here is
+	// that the other causes compete with Neglect for the same lives.
+	assert.GreaterOrEqual(t, otherDeaths.Load(), int64(10), "and some should end of Starvation or Sickness instead, so the causes compete")
 }
 
 // TestHappinessAccelerationDividesTheDecayInterval guards the arithmetic the

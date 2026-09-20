@@ -95,20 +95,6 @@ func TestHappinessAtZeroNeverKillsThePet(t *testing.T) {
 	assert.NotZero(t, p.CareMistakes, "though it does cost Care mistakes")
 }
 
-func TestAPetThatLivesItsWholeLifeDiesOfOldAge(t *testing.T) {
-	t.Parallel()
-
-	born := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	p := keptFedUntil(cleanPetBornAt(born), born, born.Add(60*time.Minute))
-	require.True(t, p.DiedAt.IsZero(), "sanity check: still alive at 60:00")
-
-	died := p.Advance(born.Add(2 * time.Hour))
-
-	assert.True(t, born.Add(oldAge).Equal(died.DiedAt), "died at %v", died.DiedAt.Sub(born))
-	assert.Equal(t, pet.OldAge, died.Cause)
-	assert.Equal(t, pet.StageDeath, died.Stage(born.Add(2*time.Hour)))
-}
-
 func TestADeadPetNeverChangesAgain(t *testing.T) {
 	t.Parallel()
 

@@ -39,7 +39,7 @@ The Panel showing the Pet's Hunger and Happiness Meters, Mess and Sick (when pre
 _Avoid_: info panel, meter panel
 
 **Death panel**:
-The single, uncaptioned Panel shown once the Pet has reached Death, consolidating its art, Stage label, Age/Weight, its Cause of Death, and the Restart prompt — never split into a PET panel and STATS panel the way earlier Stages are.
+The single, uncaptioned Panel shown once the Pet has reached Death, consolidating its art, Stage label, Age/Weight, its Cause of Death, its Care mistake count, and the Restart prompt — never split into a PET panel and STATS panel the way earlier Stages are.
 _Avoid_: a stretched PET panel
 
 ### On-screen art
@@ -175,7 +175,7 @@ The fixed interval a Stat may stay Empty, counted from the start of its Empty sp
 _Avoid_: timeout, deadline
 
 **Care mistake**:
-The cost of an Empty spell whose Grace window expires without the Stat being refilled: one per spell, per Stat, however long the spell lasts. Mistakes are counted on a single tally kept from birth.
+The cost of an Empty spell whose Grace window expires without the Stat being refilled: one per spell, per Stat, however long the spell lasts. Mistakes are counted on a single tally kept from birth, and each one, from any Stage, shortens the Adult Stage — never below a minimum, so the Pet is always seen as an Adult. The tally is shown only once the Pet has died.
 _Avoid_: care miss, strike, penalty
 
 **Attention call**:
@@ -191,7 +191,7 @@ The Care action that ends a Sick Pet's Sickness, in a single dose. On a Pet that
 _Avoid_: medicine, treat, heal
 
 **Cause of Death**:
-Why the Pet died: Old age, when its Adult Stage ran out; Starvation, when its Hunger was left Empty for too long; or Sickness, when it was left Sick too long without a Cure. Whichever comes first is the one recorded, and if several fall at the very same instant the order is Starvation, then Sickness, then Old age. A Sick Pet's grace clock is paused but its Hunger is still Empty, so Sickness never delays Starvation. A Pet never cleaned falls Sick well before Hunger could starve it, so it dies of Sickness first; one cleaned but never fed starves instead.
+Why the Pet died: Old age, when its Adult Stage ran out; Neglect, when its Adult Stage ran out after Care mistakes had shortened it; Starvation, when its Hunger was left Empty for too long; or Sickness, when it was left Sick too long without a Cure. Old age and Neglect are the same event, the end of the Adult Stage, named by whether any Care mistake was on the tally. A Care mistake that is counted after the shortened end has already passed kills the Pet at the moment it is counted, never before it. Whichever cause comes first is the one recorded, and if several fall at the very same instant the order is Starvation, then Sickness, then Neglect or Old age. A Sick Pet's grace clock is paused but its Hunger is still Empty, so Sickness never delays Starvation. A Pet never cleaned falls Sick well before Hunger could starve it, so it dies of Sickness first; one cleaned but never fed starves instead.
 _Avoid_: reason, killer
 
 **Care action**:
@@ -211,7 +211,8 @@ side effect; Snack restores Happiness but adds Weight.
 
 **Death**:
 The terminal Stage a Pet reaches when its life ends: after living as an Adult
-for a fixed real-time interval, or sooner from neglect. Every Death is recorded
+for a real-time interval that Care mistakes shorten, or sooner from starvation
+or Sickness. Every Death is recorded
 with its moment and its Cause of Death. Once reached, Care actions and their
 Icon bar are no longer available, and Mess no longer shows even if present —
 the only action left to the player is a Restart.

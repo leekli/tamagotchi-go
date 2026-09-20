@@ -90,17 +90,26 @@ func (p Pet) startUnrecordedSpells(now time.Time) Pet {
 }
 
 // countLapsedWindows counts a Care mistake for each Stat whose grace window has
-// expired by now and not yet been counted.
-func (p Pet) countLapsedWindows(now time.Time) Pet {
+// expired by now and not yet been counted, and reports the instant each was
+// counted at: its window's deadline, in order. Advance needs them, because the
+// tally shortens the Pet's life, so where in a window a mistake lands decides
+// when, and whether, the Pet dies.
+func (p Pet) countLapsedWindows(now time.Time) (Pet, []time.Time) {
+	var counted []time.Time
 	if windowLapsed(p.HungerEmpty, p.SickSince, now) {
 		p.CareMistakes++
+		counted = append(counted, p.HungerEmpty.GraceEndsAt)
 		p.HungerEmpty.GraceEndsAt = time.Time{}
 	}
 	if windowLapsed(p.HappinessEmpty, p.SickSince, now) {
 		p.CareMistakes++
+		counted = append(counted, p.HappinessEmpty.GraceEndsAt)
 		p.HappinessEmpty.GraceEndsAt = time.Time{}
 	}
-	return p
+	if len(counted) == 2 && counted[1].Before(counted[0]) {
+		counted[0], counted[1] = counted[1], counted[0]
+	}
+	return p, counted
 }
 
 // windowLapsed reports whether s's grace window has expired by now and should be

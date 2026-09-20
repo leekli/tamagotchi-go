@@ -81,15 +81,15 @@ func (p Pet) Advance(now time.Time) Pet {
 		return p
 	}
 
-	advanced := p.advanceLiving(now)
-	at, cause, dies := advanced.earliestDeath(now)
+	advanced, lapses := p.advanceLiving(now)
+	at, cause, dies := advanced.earliestDeath(p.CareMistakes, p.RecordedUntil(), lapses, now)
 	if !dies {
 		return advanced
 	}
 
 	// The Pet died partway through the window. Its Stats and Care mistakes must
 	// read as of that moment, not of now, so advance again, only as far as it.
-	died := p.advanceLiving(at)
+	died, _ := p.advanceLiving(at)
 	died.DiedAt, died.Cause = at, cause
 	return died
 }
@@ -98,9 +98,9 @@ func (p Pet) Advance(now time.Time) Pet {
 // Advance's work on Decay, Empty spells, Sickness and Care mistakes. Advance
 // calls it once to find out whether the Pet dies within the window, and again,
 // to the moment of death, if it does.
-func (p Pet) advanceLiving(at time.Time) Pet {
+func (p Pet) advanceLiving(at time.Time) (Pet, []time.Time) {
 	if at.Before(p.LastSeenAt) || at.Before(p.HappinessLastSeenAt) {
-		return p
+		return p, nil
 	}
 	p = p.startUnrecordedSpells(at)
 	p = p.decayHunger(at)
