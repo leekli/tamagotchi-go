@@ -299,3 +299,80 @@ func TestCareActionsNeitherSaveNorRescheduleTheBeat(t *testing.T) {
 		assert.Nil(t, cmd)
 	})
 }
+
+// TestAcceptance_CareMistakes drives Care mistakes through the Screen's own
+// clocks: the Beat advances the Pet and counts a mistake when a Stat's grace
+// window expires, a Care action inside the window prevents it, and nothing about
+// the tally shows on screen. The Pet is clean, so Hunger (starting at 1) empties
+// at 3:00 and its 4-minute window expires at 7:00.
+func TestAcceptance_CareMistakes(t *testing.T) {
+	t.Parallel()
+
+	starving := func() pet.Pet {
+		p := pet.New(born)
+		p.LastCleanedAt = born.Add(24 * time.Hour)
+		p.Hunger = 1
+		return p
+	}
+	beatAt := func(s tui.Screen, at time.Duration) tui.Screen {
+		s, _ = s.Update(pet.BeatMsg{Time: born.Add(at)})
+		return s
+	}
+
+	t.Run("given a Stat is left Empty when its grace window expires then one Care mistake is counted, and only then", func(t *testing.T) {
+		s := advanceAnim(t, sizedScreen(t, starving(), &fakeStore{}), born.Add(6*time.Minute), 1)
+
+		s = beatAt(s, 7*time.Minute-time.Nanosecond)
+		assert.Zero(t, currentPet(t, s).CareMistakes, "the window has not yet expired")
+		s = beatAt(s, 7*time.Minute)
+		assert.Equal(t, 1, currentPet(t, s).CareMistakes)
+		s = beatAt(s, 12*time.Minute)
+		assert.Equal(t, 1, currentPet(t, s).CareMistakes, "the same spell is not counted again")
+	})
+
+	t.Run("given a Stat is Empty when the player refills it inside the window then no mistake is counted for that spell", func(t *testing.T) {
+		s := advanceAnim(t, sizedScreen(t, starving(), &fakeStore{}), born.Add(6*time.Minute+30*time.Second), 1)
+
+		s = typeKeys(s, 'f', 'm') // a Meal at 6:30, 3:30 into the spell
+		require.Equal(t, 1, currentPet(t, s).Hunger, "sanity check: the Meal refilled Hunger")
+
+		s = beatAt(s, 8*time.Minute) // past the old 7:00 deadline
+		assert.Zero(t, currentPet(t, s).CareMistakes)
+	})
+
+	t.Run("the tally is not shown to the player while the Pet is alive", func(t *testing.T) {
+		clean := babyScreen(t, pet.New(born), &fakeStore{})
+
+		owing := pet.New(born)
+		owing.CareMistakes = 3
+		owing.HungerEmpty = pet.EmptySpell{Since: born, GraceEndsAt: born.Add(pet.GraceWindow)}
+		withTally := babyScreen(t, owing, &fakeStore{})
+
+		assert.Equal(t, visibleText(clean.View()), visibleText(withTally.View()),
+			"a Care mistake tally should make no difference to what is drawn")
+	})
+}
+
+// TestAcceptance_RestartClearsTheCareMistakeTallyAndEmptySpells: Restart
+// replaces the Pet outright, so nothing of the previous life's neglect carries
+// into the new one.
+func TestAcceptance_RestartClearsTheCareMistakeTallyAndEmptySpells(t *testing.T) {
+	t.Parallel()
+
+	t.Run("given a Pet that died owing mistakes and an open Empty spell when the player restarts then the new Pet has none", func(t *testing.T) {
+		died := pet.New(born)
+		died.CareMistakes = 3
+		died.HungerEmpty = pet.EmptySpell{Since: born, GraceEndsAt: born.Add(pet.GraceWindow)}
+		died.HappinessEmpty = pet.EmptySpell{Since: born}
+		s := deathScreen(t, died, &fakeStore{})
+
+		s = typeKeys(s, 'x') // not the Restart key: nothing should change
+		require.Equal(t, 3, currentPet(t, s).CareMistakes)
+		s, _ = s.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
+		restarted := currentPet(t, s)
+		assert.Zero(t, restarted.CareMistakes)
+		assert.Equal(t, pet.EmptySpell{}, restarted.HungerEmpty)
+		assert.Equal(t, pet.EmptySpell{}, restarted.HappinessEmpty)
+	})
+}

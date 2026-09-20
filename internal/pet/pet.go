@@ -98,6 +98,13 @@ const (
 	// HappinessDecayInterval is the same, for Happiness.
 	HappinessDecayInterval = 3 * time.Minute
 
+	// GraceWindow is how long a Stat may stay Empty (at 0) before that Empty
+	// spell costs a Care mistake. Deliberately a little over one Decay step (3
+	// minutes), so a single late refill is not punished, and far shorter than the
+	// original hardware's 15 minutes, since the whole life here is about an hour.
+	// Don't "correct" this back to real-hardware timing.
+	GraceWindow = 4 * time.Minute
+
 	// MessInterval is how long the Pet can go without being Cleaned before it
 	// HasMess. Chosen to be visible within a single play session: long enough
 	// that a freshly-hatched Baby isn't immediately messy, short enough that a
@@ -148,6 +155,17 @@ type Pet struct {
 	// increases it, Play decreases it) between a floor of BaseWeight and a
 	// ceiling of MaxWeight — never from elapsed time.
 	Weight int
+
+	// CareMistakes is the lifetime tally of Care mistakes: one for each Empty
+	// spell, per Stat, whose GraceWindow has expired. It is kept from birth and
+	// only ever grows. Nothing shows it to the player yet.
+	CareMistakes int
+	// HungerEmpty and HappinessEmpty record each Stat's current Empty spell. They
+	// are stored, not derived, because when a Stat emptied and whether its
+	// mistake has been counted are history that cannot be recomputed from the
+	// Stat's value and CreatedAt — see docs/adr/0008.
+	HungerEmpty    EmptySpell
+	HappinessEmpty EmptySpell
 }
 
 // New returns a freshly born Pet: an Egg, full Hunger and Happiness, and
@@ -274,5 +292,7 @@ func withLoadDefaults(p Pet) Pet {
 	// hand-edited save file. Left alone, one below minus a whole interval
 	// would make Advance hand Happiness points back without time passing.
 	p.HappinessProgress = max(p.HappinessProgress, 0)
+	// A negative tally can only come from a corrupted or hand-edited save file.
+	p.CareMistakes = max(p.CareMistakes, 0)
 	return p
 }

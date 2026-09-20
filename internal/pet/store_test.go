@@ -70,6 +70,128 @@ func TestFileStoreRoundTripsHappinessProgress(t *testing.T) {
 	assert.Equal(t, want.Happiness, got.Happiness)
 }
 
+// TestFileStoreRoundTripsCareMistakesAndEmptySpells proves the Care mistake
+// tally and both Stats' Empty spells survive a save and load, in each phase: one
+// spell lapsed and counted, the other still inside its grace window. It checks
+// behaviour, not stored fields: the loaded Pet must report the same Attention
+// calls and go on to count the same next mistake at the same instant.
+func TestFileStoreRoundTripsCareMistakesAndEmptySpells(t *testing.T) {
+	t.Parallel()
+
+	store := pet.NewFileStore(filepath.Join(t.TempDir(), "save.json"))
+	born := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	p := pet.New(born)
+	p.LastCleanedAt = born.Add(24 * time.Hour) // no Mess, so both Stats decay normally
+	p.Hunger = 1                               // Empty 3:00, counted at 7:00
+	// Happiness starts full: Empty 12:00, window running until 16:00.
+
+	now := born.Add(13 * time.Minute)
+	want := p.Advance(now)
+	require.Equal(t, 1, want.CareMistakes, "sanity check: Hunger's spell has lapsed")
+	require.Equal(t, pet.AttentionWindowRunning, want.HappinessAttention(now), "sanity check: Happiness's is running")
+
+	require.NoError(t, store.Save(want))
+	got, ok, err := store.Load()
+
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, want.CareMistakes, got.CareMistakes)
+	assert.Equal(t, pet.AttentionLapsed, got.HungerAttention(now))
+	assert.Equal(t, pet.AttentionWindowRunning, got.HappinessAttention(now))
+
+	end := born.Add(16 * time.Minute)
+	assert.Equal(t, 1, got.Advance(end.Add(-time.Nanosecond)).CareMistakes, "Happiness's window has not yet expired")
+	assert.Equal(t, 2, got.Advance(end).CareMistakes, "it expires at the same instant it would have without the save")
+	assert.Equal(t, want.Advance(end).CareMistakes, got.Advance(end).CareMistakes)
+}
+
+// TestFileStoreLoadOldSaveWithNoEmptyStatsHasNoTally: a save from before Care
+// mistakes existed, with both Stats above 0, loads with nothing owed.
+func TestFileStoreLoadOldSaveWithNoEmptyStatsHasNoTally(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "save.json")
+	createdAt := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	body := `{
+		"schema_version": 1,
+		"created_at": "` + createdAt.Format(time.RFC3339Nano) + `",
+		"last_seen_at": "` + createdAt.Format(time.RFC3339Nano) + `",
+		"hunger": 3,
+		"happiness": 2,
+		"weight": 2
+	}`
+	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
+
+	got, ok, err := pet.NewFileStore(path).Load()
+
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Zero(t, got.CareMistakes)
+	assert.Equal(t, pet.AttentionNone, got.HungerAttention(createdAt))
+	assert.Equal(t, pet.AttentionNone, got.HappinessAttention(createdAt))
+}
+
+// TestFileStoreLoadOldSaveWithAnEmptyStatGetsAFreshGraceWindow: a save from
+// before spells were recorded can have a Stat at 0 with no record of when it
+// emptied. Loading it and catching up must give a fresh window from that first
+// Advance, never counting a mistake for time before the upgrade.
+func TestFileStoreLoadOldSaveWithAnEmptyStatGetsAFreshGraceWindow(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "save.json")
+	createdAt := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	lastSeen := createdAt.Add(time.Hour)
+	body := `{
+		"schema_version": 1,
+		"created_at": "` + createdAt.Format(time.RFC3339Nano) + `",
+		"last_seen_at": "` + lastSeen.Format(time.RFC3339Nano) + `",
+		"last_cleaned_at": "` + lastSeen.Format(time.RFC3339Nano) + `",
+		"hunger": 0,
+		"happiness": 4,
+		"weight": 2
+	}`
+	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
+
+	got, ok, err := pet.NewFileStore(path).Load()
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Zero(t, got.CareMistakes)
+
+	launchedAt := lastSeen.Add(time.Minute) // the first Advance after the upgrade
+	caughtUp := got.Advance(launchedAt)
+
+	assert.Zero(t, caughtUp.CareMistakes, "Hunger was at 0 before the upgrade, but that time is not held against it")
+	assert.Equal(t, pet.AttentionWindowRunning, caughtUp.HungerAttention(launchedAt))
+	assert.Zero(t, caughtUp.Advance(launchedAt.Add(pet.GraceWindow-time.Nanosecond)).CareMistakes)
+	assert.Equal(t, 1, caughtUp.Advance(launchedAt.Add(pet.GraceWindow)).CareMistakes,
+		"the window is a full GraceWindow from the first Advance")
+}
+
+// TestFileStoreLoadClampsNegativeCareMistakes: a corrupted negative tally is
+// treated as none, so it cannot cancel out mistakes still to be counted.
+func TestFileStoreLoadClampsNegativeCareMistakes(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "save.json")
+	createdAt := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	body := `{
+		"schema_version": 1,
+		"created_at": "` + createdAt.Format(time.RFC3339Nano) + `",
+		"last_seen_at": "` + createdAt.Format(time.RFC3339Nano) + `",
+		"care_mistakes": -7,
+		"hunger": 4,
+		"happiness": 4,
+		"weight": 2
+	}`
+	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
+
+	got, ok, err := pet.NewFileStore(path).Load()
+
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Zero(t, got.CareMistakes)
+}
+
 // TestFileStoreLoadClampsNegativeHappinessProgress proves a corrupted negative
 // progress value is treated as none. Left alone, a value below minus one
 // interval (here minus 400s against a 180s interval) would make Advance hand

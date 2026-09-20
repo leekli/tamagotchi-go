@@ -53,6 +53,12 @@ const maxHappinessAccrual = time.Duration(math.MaxInt64 / 2)
 // the passage of time is Mess appearing MessInterval after LastCleanedAt;
 // Care actions (Clean, and the Weight changes of Snack and Play) are the
 // others, which is why they must follow an Advance to their own instant.
+//
+// Advance also keeps each Stat's Empty spell (see EmptySpell): it records the
+// exact instant a Stat reaches 0, and counts a Care mistake at the exact
+// instant the spell's grace window expires, however many Beats or how long a
+// catch-up that falls inside. A Stat already at 0 with no recorded spell (a
+// save from before spells existed) gets a fresh window starting at now.
 func (p Pet) Advance(now time.Time) Pet {
 	if now.Before(p.LastSeenAt) || now.Before(p.HappinessLastSeenAt) {
 		// The clock went backwards (e.g. a corrected system clock). Ignore
@@ -60,16 +66,32 @@ func (p Pet) Advance(now time.Time) Pet {
 		return p
 	}
 
-	// Advance the Hunger anchor only by the decay steps actually consumed, not
-	// all the way to now: the Next Screen's Beat fires far more often than a
-	// decay interval (seconds vs. minutes), so resetting the anchor to now on
-	// every call would discard each Beat's sub-interval progress before it
-	// ever accumulated into a whole step.
-	var hungerConsumed time.Duration
-	p.Hunger, hungerConsumed = decayStat(p.Hunger, now.Sub(p.LastSeenAt), HungerDecayInterval)
-	p.LastSeenAt = p.LastSeenAt.Add(hungerConsumed)
+	p = p.startUnrecordedSpells(now)
+	p = p.decayHunger(now)
+	p = p.decayHappiness(now)
+	return p.countLapsedWindows(now)
+}
 
-	return p.decayHappiness(now)
+// decayHunger applies Hunger Decay up to now, and records the instant Hunger
+// reaches 0 if it does so in this window.
+//
+// The anchor advances only by the decay steps actually consumed, not all the
+// way to now: the Next Screen's Beat fires far more often than a decay interval
+// (seconds vs. minutes), so resetting the anchor to now on every call would
+// discard each Beat's sub-interval progress before it ever accumulated into a
+// whole step. Because steps land on a fixed grid from the anchor, the instant
+// Hunger reaches 0 is exactly the anchor plus one interval per point it had.
+func (p Pet) decayHunger(now time.Time) Pet {
+	anchor, before := p.LastSeenAt, p.Hunger
+
+	var consumed time.Duration
+	p.Hunger, consumed = decayStat(before, now.Sub(anchor), HungerDecayInterval)
+	p.LastSeenAt = anchor.Add(consumed)
+
+	if before > 0 && p.Hunger == 0 {
+		p.HungerEmpty = beginAt(anchor.Add(time.Duration(before) * HungerDecayInterval))
+	}
+	return p
 }
 
 // decayHappiness applies Happiness Decay from HappinessLastSeenAt up to now,
@@ -80,23 +102,39 @@ func (p Pet) Advance(now time.Time) Pet {
 func (p Pet) decayHappiness(now time.Time) Pet {
 	cursor := p.HappinessLastSeenAt
 	progress := p.HappinessProgress
-	var lost int64 // whole Happiness points to take off
+	points := p.Happiness
+	var emptiedAt time.Time // when Happiness reached 0 in this window, if it did
 
 	for cursor.Before(now) {
 		end := now
 		if change, ok := p.nextRateChange(cursor); ok && change.Before(end) {
 			end = change
 		}
-		rate := p.happinessRate(cursor)
-		progress += min(end.Sub(cursor), maxHappinessAccrual/time.Duration(rate)) * time.Duration(rate)
-		lost += int64(progress / HappinessDecayInterval)
+		rate := time.Duration(p.happinessRate(cursor))
+
+		before := progress
+		progress += min(end.Sub(cursor), maxHappinessAccrual/rate) * rate
+		steps := int(progress / HappinessDecayInterval)
 		progress %= HappinessDecayInterval
+
+		if points > 0 && steps >= points {
+			// The last point goes when progress reaches `points` whole intervals:
+			// that much work from where this piece began, done at this piece's
+			// rate. Rounded up to a whole nanosecond, so the instant is one the
+			// Pet has actually reached.
+			need := time.Duration(points)*HappinessDecayInterval - before
+			emptiedAt = cursor.Add((need + rate - 1) / rate)
+		}
+		points = max(points-steps, 0)
 		cursor = end
 	}
 
-	p.Happiness = max(p.Happiness-int(min(lost, MaxStat)), 0)
+	p.Happiness = points
 	p.HappinessProgress = progress
 	p.HappinessLastSeenAt = now
+	if !emptiedAt.IsZero() {
+		p.HappinessEmpty = beginAt(emptiedAt)
+	}
 	return p
 }
 

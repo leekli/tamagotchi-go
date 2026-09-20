@@ -28,16 +28,17 @@ func (p Pet) Feed(kind FoodKind) Pet {
 	default:
 		p.Hunger = min(p.Hunger+1, MaxStat)
 	}
-	return p
+	return p.endRefilledSpells()
 }
 
 // Play restores one point of Happiness, capped at MaxStat, and reduces
 // Weight by one point, floored at BaseWeight — a real counterbalance to
-// Snack's Weight cost, so a Care action exists to bring Weight back down.
+// Snack's Weight cost, so a Care action exists to bring Weight back down. Like
+// Feed, lifting an Empty Stat above 0 ends its Empty spell.
 func (p Pet) Play() Pet {
 	p.Happiness = min(p.Happiness+1, MaxStat)
 	p.Weight = max(p.Weight-1, BaseWeight)
-	return p
+	return p.endRefilledSpells()
 }
 
 // Clean records that the Pet was cleaned as of now, ending any Mess. It
