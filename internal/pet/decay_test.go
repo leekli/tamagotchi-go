@@ -321,6 +321,26 @@ func TestAdvanceDoesNotCompoundMessAndOverfed(t *testing.T) {
 		"Messy+Overfed together should decay Happiness at the same rate as Messy alone, not faster")
 }
 
+// TestAdvanceFromAnAbsurdlyOldAnchorStillEmptiesHappiness guards the
+// arithmetic against overflow. A save file missing its timestamps reads as the
+// zero time, so the window to "now" is over two thousand years, which
+// time.Duration saturates at about 292; doubled for the accelerated rate that
+// would wrap negative and hand Happiness points back instead of taking them.
+func TestAdvanceFromAnAbsurdlyOldAnchorStillEmptiesHappiness(t *testing.T) {
+	t.Parallel()
+
+	var zero time.Time
+	p := pet.Pet{Hunger: pet.MaxStat, Happiness: pet.MaxStat, Weight: pet.BaseWeight}
+	require.True(t, p.LastSeenAt.Equal(zero), "sanity check: the anchors start at the zero time")
+
+	advanced := p.Advance(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
+
+	assert.Equal(t, 0, advanced.Hunger)
+	assert.Equal(t, 0, advanced.Happiness)
+	assert.GreaterOrEqual(t, int64(advanced.HappinessProgress), int64(0))
+	assert.Less(t, advanced.HappinessProgress, pet.HappinessDecayInterval)
+}
+
 func TestAdvanceHungerAndHappinessNeverGoNegative(t *testing.T) {
 	t.Parallel()
 

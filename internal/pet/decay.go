@@ -1,12 +1,23 @@
 package pet
 
-import "time"
+import (
+	"math"
+	"time"
+)
 
 // happinessAcceleration is how many times faster Happiness Decays while the
 // Pet HasMess or is Overfed. AcceleratedHappinessDecayInterval must divide
 // HappinessDecayInterval exactly, so that progress toward a point stays a
 // whole number of nanoseconds however a window is split.
 const happinessAcceleration = int64(HappinessDecayInterval / AcceleratedHappinessDecayInterval)
+
+// maxHappinessAccrual bounds the progress a single constant-rate piece of a
+// window can add. time.Duration saturates at about 292 years, so a save file
+// that lost its timestamps (read as the zero time) yields a window far larger
+// than any real one, and doubling it for the accelerated rate would overflow.
+// Half the range is many thousands of times more than Happiness could ever
+// lose, so clamping to it changes nothing that matters.
+const maxHappinessAccrual = time.Duration(math.MaxInt64 / 2)
 
 // Advance is the one function that moves time forward. It is pure and
 // deterministic given p and now — it never calls time.Now() itself — so
@@ -69,18 +80,22 @@ func (p Pet) Advance(now time.Time) Pet {
 func (p Pet) decayHappiness(now time.Time) Pet {
 	cursor := p.HappinessLastSeenAt
 	progress := p.HappinessProgress
+	var lost int64 // whole Happiness points to take off
 
 	for cursor.Before(now) {
 		end := now
 		if change, ok := p.nextRateChange(cursor); ok && change.Before(end) {
 			end = change
 		}
-		progress += end.Sub(cursor) * time.Duration(p.happinessRate(cursor))
+		rate := p.happinessRate(cursor)
+		progress += min(end.Sub(cursor), maxHappinessAccrual/time.Duration(rate)) * time.Duration(rate)
+		lost += int64(progress / HappinessDecayInterval)
+		progress %= HappinessDecayInterval
 		cursor = end
 	}
 
-	p.Happiness = max(p.Happiness-int(progress/HappinessDecayInterval), 0)
-	p.HappinessProgress = progress % HappinessDecayInterval
+	p.Happiness = max(p.Happiness-int(min(lost, MaxStat)), 0)
+	p.HappinessProgress = progress
 	p.HappinessLastSeenAt = now
 	return p
 }
