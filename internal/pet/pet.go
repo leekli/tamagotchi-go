@@ -124,6 +124,13 @@ const (
 	// Don't "correct" this back to real-hardware timing.
 	StarvationInterval = 10 * time.Minute
 
+	// SickDeathInterval is how long the Pet may stay Sick, without a Cure, before
+	// it dies of Sickness, counted from when it fell Sick. Shorter than
+	// StarvationInterval and coming after SickAfterMess, so a Pet never cleaned is
+	// Sick at 10:00 and dies at 18:00, ahead of Starvation at 22:00. A Cure in time
+	// prevents it. Don't "correct" this back to real-hardware timing.
+	SickDeathInterval = 8 * time.Minute
+
 	// AcceleratedHappinessDecayInterval is the (shorter) HappinessDecayInterval
 	// applied while the Pet HasMess or is Overfed — Happiness Decays twice as
 	// fast under either cause, so neglecting either has a real, visible cost.
@@ -286,6 +293,21 @@ func (p Pet) Age(now time.Time) time.Duration {
 		return EggDuration + BabyDuration + ChildDuration + TeenDuration + AdultDuration
 	}
 	return now.Sub(p.CreatedAt)
+}
+
+// RecordedUntil reports the latest instant the Pet's own record reaches: the last
+// Advance (Happiness's anchor moves to every one, while Hunger's can trail it by
+// nearly a whole step), or, for a Pet that has died, the moment it died, however
+// long ago, since nothing advances a dead Pet again. A Screen seeds its clock
+// from it, so that its first frame is drawn at a time consistent with the Pet.
+func (p Pet) RecordedUntil() time.Time {
+	latest := p.LastSeenAt
+	for _, t := range []time.Time{p.HappinessLastSeenAt, p.DiedAt} {
+		if t.After(latest) {
+			latest = t
+		}
+	}
+	return latest
 }
 
 // CauseAt reports why the Pet is dead as of now, or NotDead while it is alive. A

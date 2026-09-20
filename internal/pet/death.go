@@ -12,6 +12,9 @@ const (
 	OldAge
 	// Starvation is a death from Hunger left Empty for StarvationInterval.
 	Starvation
+	// Sickness is a death from being left Sick for SickDeathInterval without a
+	// Cure.
+	Sickness
 )
 
 // String returns the cause's display name, shown on the Death panel. It is empty
@@ -22,6 +25,8 @@ func (c CauseOfDeath) String() string {
 		return "Old age"
 	case Starvation:
 		return "Starvation"
+	case Sickness:
+		return "Sickness"
 	default:
 		return ""
 	}
@@ -34,17 +39,25 @@ func (p Pet) lifespanEnd() time.Time {
 
 // earliestDeath reports the moment the Pet dies, if it does by now, and why. It
 // is read from a Pet already advanced to now, so that the Empty spell that will
-// starve it is on record. When causes fall at the very same instant the spec's
-// order applies: Starvation before Old age.
+// starve it and the Sickness that will kill it are on record. The earliest
+// instant wins. Causes falling at the very same instant go in the spec's order:
+// Starvation, Sickness, Neglect, Old age. Candidates are therefore considered in
+// that order, and a later one only replaces an earlier only if it is strictly
+// sooner.
 func (p Pet) earliestDeath(now time.Time) (at time.Time, cause CauseOfDeath, dies bool) {
-	if p.Hunger == 0 && !p.HungerEmpty.Since.IsZero() {
-		if starves := p.HungerEmpty.Since.Add(StarvationInterval); !starves.After(now) {
-			at, cause, dies = starves, Starvation, true
+	consider := func(when time.Time, why CauseOfDeath) {
+		if !when.After(now) && (!dies || when.Before(at)) {
+			at, cause, dies = when, why, true
 		}
 	}
-	if old := p.lifespanEnd(); !old.After(now) && (!dies || old.Before(at)) {
-		at, cause, dies = old, OldAge, true
+
+	if p.Hunger == 0 && !p.HungerEmpty.Since.IsZero() {
+		consider(p.HungerEmpty.Since.Add(StarvationInterval), Starvation)
 	}
+	if !p.SickSince.IsZero() {
+		consider(p.SickSince.Add(SickDeathInterval), Sickness)
+	}
+	consider(p.lifespanEnd(), OldAge)
 	return at, cause, dies
 }
 
@@ -56,6 +69,8 @@ func causeName(c CauseOfDeath) string {
 		return "old_age"
 	case Starvation:
 		return "starvation"
+	case Sickness:
+		return "sickness"
 	default:
 		return ""
 	}
@@ -70,6 +85,8 @@ func causeFromName(name string) CauseOfDeath {
 		return OldAge
 	case "starvation":
 		return Starvation
+	case "sickness":
+		return Sickness
 	default:
 		return NotDead
 	}

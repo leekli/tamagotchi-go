@@ -194,6 +194,26 @@ func TestFileStoreRoundTripsARecordedOldAgeDeath(t *testing.T) {
 	assert.True(t, p.DiedAt.Equal(got.DiedAt))
 }
 
+// TestFileStoreRoundTripsASicknessDeath: the third cause survives a save and load
+// by name too.
+func TestFileStoreRoundTripsASicknessDeath(t *testing.T) {
+	t.Parallel()
+
+	store := pet.NewFileStore(filepath.Join(t.TempDir(), "save.json"))
+	born := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	died := pet.New(born).Advance(born.Add(time.Hour)) // never cleaned: dies of Sickness at 18:00
+	require.Equal(t, pet.Sickness, died.Cause, "sanity check")
+
+	require.NoError(t, store.Save(died))
+	got, ok, err := store.Load()
+
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, pet.Sickness, got.Cause)
+	assert.True(t, died.DiedAt.Equal(got.DiedAt))
+	assert.Equal(t, pet.Sickness, got.CauseAt(born.Add(5*time.Hour)))
+}
+
 // TestFileStoreLoadOldSavePastItsAgeIsDeadOfOldAge: a save from before deaths
 // were recorded has no death fields. If it is past its age it is dead by the
 // age-based rule, and its cause reads as Old age, though nothing is recorded.

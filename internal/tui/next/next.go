@@ -28,8 +28,11 @@ type Screen struct {
 	pet   pet.Pet
 	store pet.Store
 
-	// now is the Screen's own view of wall-clock time, seeded from the
-	// initial Pet's LastSeenAt and refreshed on every anim.TickMsg. It
+	// now is the Screen's own view of wall-clock time, seeded from the latest
+	// instant the initial Pet's record reaches (see pet.Pet.RecordedUntil),
+	// read from the real clock straight away by Init's anim.Now, and refreshed on
+	// every anim.TickMsg. For a Pet that died long ago the seed is the moment of
+	// death, so even the first frame is the Death panel. It
 	// drives Stage/Age rendering only — never Advance, which runs on the
 	// much slower pet.Beat clock. Tracking it separately keeps the visible
 	// Egg→Baby hatch responsive rather than lagging behind the Beat.
@@ -63,7 +66,7 @@ func New(initial pet.Pet, store pet.Store) tui.Screen {
 	return &Screen{
 		pet:    initial,
 		store:  store,
-		now:    initial.LastSeenAt,
+		now:    initial.RecordedUntil(),
 		keys:   defaultKeyMap(),
 		styles: newStyles(tui.DefaultPalette()),
 	}
@@ -119,10 +122,12 @@ func (s *Screen) Frame() int { return s.frame }
 // Pet reports the Screen's current Pet. Intended for tests.
 func (s *Screen) Pet() pet.Pet { return s.pet }
 
-// Init implements tui.Screen. It starts both of the Screen's clocks: the
-// fast animation clock and the much slower simulation Beat.
+// Init implements tui.Screen. It starts both of the Screen's clocks, the fast
+// animation clock and the much slower simulation Beat, and reads the real clock
+// at once, so that Restart (which stamps the new Egg's birth from the Screen's
+// clock) never runs on the seed.
 func (s *Screen) Init() tea.Cmd {
-	return tea.Batch(anim.Tick(), pet.Beat())
+	return tea.Batch(anim.Now(), anim.Tick(), pet.Beat())
 }
 
 // Update implements tui.Screen.

@@ -575,6 +575,17 @@ func TestAcceptance_TheDeathPanelNamesTheCause(t *testing.T) {
 		assert.Equal(t, envelopeHeight, last-first+1, "and the panel is still its fixed height")
 	})
 
+	t.Run("Sickness, recorded by a Beat", func(t *testing.T) {
+		s := advanceAnim(t, sizedScreen(t, pet.New(born), &fakeStore{}), born.Add(18*time.Minute), 1)
+		s, _ = s.Update(pet.BeatMsg{Time: born.Add(18 * time.Minute)})
+
+		view := visibleText(s.View())
+
+		assert.Contains(t, view, "Cause: Sickness")
+		assert.NotContains(t, view, "Sick\n", "the Sick indicator is gone with the STATS panel")
+		assert.Contains(t, view, "hatch a new Egg")
+	})
+
 	t.Run("Old age, though never recorded (a save from before deaths were)", func(t *testing.T) {
 		s := deathScreen(t, pet.New(born), &fakeStore{})
 
@@ -692,6 +703,11 @@ func TestAcceptance_RestartAfterEveryCause(t *testing.T) {
 			require.Equal(t, pet.Starvation, p.Cause, "sanity check")
 			return p
 		}(),
+		"Sickness": func() pet.Pet {
+			p := pet.New(born).Advance(born.Add(30 * time.Minute)) // never cleaned: dies of Sickness at 18:00
+			require.Equal(t, pet.Sickness, p.Cause, "sanity check")
+			return p
+		}(),
 	}
 
 	for cause, initial := range dead {
@@ -721,4 +737,24 @@ func TestAcceptance_RestartAfterEveryCause(t *testing.T) {
 			})
 		}
 	}
+}
+
+// TestAcceptance_ADeadPetIsDeadOnTheVeryFirstFrame: a Pet that died long before
+// the game was launched has its clock frozen at the moment of death. The Screen
+// draws its first frame before any animation tick, from a clock seeded from the
+// Pet's record, so that frame must already be the Death panel, and not the living
+// Pet it would be if the clock were seeded from Hunger's whole-step anchor, which
+// for a Starvation is a step short of the death.
+func TestAcceptance_ADeadPetIsDeadOnTheVeryFirstFrame(t *testing.T) {
+	t.Parallel()
+
+	died := starvedPet().Advance(born.Add(3 * time.Hour))
+	require.Equal(t, pet.Starvation, died.Cause, "sanity check")
+	require.True(t, died.LastSeenAt.Before(died.DiedAt), "sanity check: Hunger's anchor is short of the death")
+
+	s := sizedScreen(t, died, &fakeStore{}) // no animation tick has run
+
+	view := visibleText(s.View())
+	assert.Contains(t, view, "Cause: Starvation")
+	assert.NotContains(t, view, "Hunger", "not even one frame of a living Pet's Meters")
 }

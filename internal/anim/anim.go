@@ -36,6 +36,16 @@ func Tick() tea.Cmd {
 	})
 }
 
+// Now returns a command that delivers a [TickMsg] carrying the current time at
+// once, instead of after a frame as [Tick] does. A Screen issues it from Init so
+// that its clock is real before the first input arrives, not left on whatever it
+// was seeded with until the first frame.
+func Now() tea.Cmd {
+	return func() tea.Msg {
+		return TickMsg{Time: time.Now()}
+	}
+}
+
 // Elapsed converts a frame count into the wall-clock duration it represents at
 // [FPS]. It bridges a Screen's frame counter and the duration-based helpers
 // below.

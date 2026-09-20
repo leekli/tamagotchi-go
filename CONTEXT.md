@@ -183,7 +183,7 @@ The Pet's signal that a Stat is Empty, in one of two phases: the Grace window st
 _Avoid_: alert, notification
 
 **Sick**:
-The state the Pet falls into once its Mess has gone uncleaned for a further fixed interval after it appeared. Cleaning removes the Mess but does not end it: only Cure does, and a Pet Cured while its Mess is still there falls Sick again a full interval later. A Sick Pet can still be fed and played with.
+The state the Pet falls into once its Mess has gone uncleaned for a further fixed interval after it appeared. Cleaning removes the Mess but does not end it: only Cure does, and a Pet Cured while its Mess is still there falls Sick again a full interval later. A Sick Pet can still be fed and played with, but one left Sick for long enough without a Cure dies of Sickness.
 _Avoid_: ill, illness
 
 **Cure**:
@@ -191,7 +191,7 @@ The Care action that ends a Sick Pet's Sickness, in a single dose. On a Pet that
 _Avoid_: medicine, treat, heal
 
 **Cause of Death**:
-Why the Pet died: Old age, when its Adult Stage ran out, or Starvation, when its Hunger was left Empty for too long. If several fall at the very same instant, Starvation is the one recorded. A Sick Pet's grace clock is paused but its Hunger is still Empty, so Sickness never delays Starvation.
+Why the Pet died: Old age, when its Adult Stage ran out; Starvation, when its Hunger was left Empty for too long; or Sickness, when it was left Sick too long without a Cure. Whichever comes first is the one recorded, and if several fall at the very same instant the order is Starvation, then Sickness, then Old age. A Sick Pet's grace clock is paused but its Hunger is still Empty, so Sickness never delays Starvation. A Pet never cleaned falls Sick well before Hunger could starve it, so it dies of Sickness first; one cleaned but never fed starves instead.
 _Avoid_: reason, killer
 
 **Care action**:

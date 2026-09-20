@@ -62,3 +62,29 @@ mistakes read as of the death and not of the time the game happened to notice. A
 from then on `Advance` returns the Pet unchanged: a dead Pet has no time left to
 pass. The Screen notices a death on the next Beat, or sooner when a Care action
 advances the Pet first, in which case the action finds it dead and does nothing.
+
+## Update: Sickness kills, and the first launch after an upgrade is not special
+
+A Pet left Sick for `SickDeathInterval` without a Cure now dies of Sickness, at
+that exact instant. `earliestDeath` considers Starvation, then Sickness, then Old
+age, and a later cause replaces an earlier one only if it is strictly sooner, so
+an exact tie goes to the earlier in the spec's order. A Pet never cleaned is Sick
+at 10:00 and dead at 18:00, ahead of the 22:00 at which Hunger would starve it.
+
+The Next Screen seeds its clock from `Pet.RecordedUntil`, the latest instant the
+Pet's own record reaches, and reads the real clock at once from `Init`. Hunger's
+whole-step anchor is the wrong seed for a Pet that died long ago: dead Pets are
+frozen, so it stays a step short of the moment of death, and a first frame drawn
+from it would show a Starvation as still alive.
+
+**Known limitation, accepted.** A save written before neglect was tracked has no
+record of any of it, so its first launch applies the whole time the game was
+closed under the new rules, exactly as for any other offline gap: a Pet still alive
+under the old rules that was left idle for about 22 minutes (or with a Mess
+unattended for about 18) is found dead, with its cause shown. Special-casing
+that needs a marker that says "this save predates neglect", which means a schema
+version bump and a one-off migration, for saves that are, as of this decision,
+essentially the maintainer's own: any save more than an hour old was already dead
+of old age. The outcome is not destructive, since a Pet lives about an hour by
+design and Restart is one keypress. If the game is ever distributed to other
+players, revisit it then, with the schema bump and a real migration path.

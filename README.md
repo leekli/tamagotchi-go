@@ -35,7 +35,7 @@ TUI framework.
 
 - A living, persisted Pet on the Next Screen: it's born an Egg, hatches into a
   Baby, grows into a Child, a Teen, and an Adult, and eventually dies of old
-  age, or sooner of starvation if you leave its Hunger at 0 for too long — its
+  age, or sooner of starvation or untreated sickness if you neglect it — its
   current Stage always shown as a label beneath its art — while its
   Hunger and Happiness decay over real elapsed time, whether or not the game
   is running. State persists between runs (`internal/pet`). Once it has
@@ -53,15 +53,17 @@ TUI framework.
   indicator appears in its STATS panel. Cleaning up does not cure it — only the
   Cure action does (the fourth Icon bar tab, or <kbd>u</kbd>), and a Pet Cured
   while its Mess is still there falls Sick again a while later. A Sick Pet can
-  still be fed and played with, and nothing worse happens to it yet.
+  still be fed and played with, but left Sick for eight minutes without a Cure
+  it dies of Sickness.
 - Neglect is tracked behind the scenes: leave Hunger or Happiness at 0 for
   longer than a short grace window and the Pet racks up a Care mistake (one per
   Stat per Empty spell, on a lifetime tally that isn't shown to you). Refilling
   the Stat in time — a Meal for Hunger, a Snack or Play for Happiness — spares
   you, and a Sick Pet's grace window is paused until you Cure it. The tally
   isn't shown and has no consequence yet; it is groundwork for what neglect
-  will cost. What does have one already: a Pet whose Hunger stays at 0 for ten
-  minutes starves, even while Sick.
+  will cost. What does have a cost already: a Pet whose Hunger stays at 0 for
+  ten minutes starves, even while Sick. One never cleaned dies of Sickness
+  first, at 18 minutes old.
 - A screen-routed TUI that clears the terminal on entry and restores it on exit.
 - A hand-authored ASCII wordmark with a one-pass shine sweep, a wandering
   animated Character, and a pulsing begin prompt — all on a deterministic,
