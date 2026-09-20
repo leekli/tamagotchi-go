@@ -96,6 +96,11 @@ func TestRenderIconBarRowHasItsFixedWidthForBothMenus(t *testing.T) {
 	selected := lipgloss.NewStyle()
 	border := tui.DefaultPalette().Dim
 
+	// The literal is deliberate: it is the row width docs/adr/0007 fixes (four
+	// 9-column tabs and three 2-column gaps, for the Cure tab a later change
+	// adds), not something to recompute from the constant under test.
+	require.Equal(t, 42, iconRowWidth, "Icon bar row width per ADR-0007")
+
 	threeTabRow := renderIconBar(0, normal, selected, border)
 	twoTabRow := renderFeedChoice(0, normal, selected, border)
 

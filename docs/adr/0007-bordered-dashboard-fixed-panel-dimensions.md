@@ -18,3 +18,31 @@ side.
 Consequences: a future addition to any state must fit inside its Panel's
 fixed dimensions or trigger a deliberate re-derivation of the constant —
 and everything that shares it — rather than silently reflowing.
+
+## Update: the envelope grows to 43×17 to make room for neglect
+
+The consequences above anticipated this: the Pet is gaining a Sick indicator, an
+Attention call, a cause of Death, a Care mistake tally and a fourth Care action
+(Cure). Each needs a place on screen, and every existing row was already used, so
+the constants are re-derived deliberately, in one change, rather than squeezing
+new content in or letting it reflow.
+
+- PET and STATS are 12 rows tall (was 10), still 18 and 23 columns wide. STATS
+  gains two content rows (8 in all): one reserved for the Sick indicator and one
+  for the Attention call, blank until they exist. The Mess row and both spacer
+  rows stay. PET's art and label simply centre in the taller panel.
+- The Death panel is 17 rows (was 15), still 43 wide, with two of its 13 content
+  rows reserved blank for the cause of Death and the Care mistake tally.
+- The Icon bar row is 42 columns (was 31): four 9-column tabs and three 2-column
+  gaps. The three-tab bar and the two-tab Meal/Snack chooser both centre within
+  it, so switching between them still shifts nothing.
+- The shared envelope is therefore 43×17: the PET+STATS row (12) plus the gap (1),
+  the tab row (3) and the flourish row (1), and the Death panel, which is as tall
+  as that whole composite. It still fits the 80×24 minimum terminal's 23-row body
+  with room to spare, so the minimum does not change.
+
+The reserved rows are blank on purpose: this change adds no visible content, so the
+screen looks as it did, only taller, and later changes fill rows in without moving
+anything. Because `View` is centred to the whole body, a raw line count is the same
+for every state; the tests therefore measure the occupied rows and columns to prove
+each state, Egg included, occupies the same envelope.

@@ -10,24 +10,27 @@ import (
 // and STATS panels' fixed outer dimensions (border and padding included),
 // per docs/adr/0007: petPanel is sized to Adult's art (the widest of any
 // Stage, 14 columns); statsPanel to the Hunger/Happiness Meter row (19
-// characters, e.g. "Happiness  ▓▓▓▓ 4/4"). panelGap is the fixed spacing
-// between them when shown side by side.
+// characters, e.g. "Happiness  ▓▓▓▓ 4/4"). Both are 12 rows tall: STATS has 8
+// content rows, of which today's content uses 6 and the rest are reserved
+// blank for the Sick indicator and the Attention call. panelGap is the fixed
+// spacing between them when shown side by side.
 const (
 	petPanelWidth  = 18
-	petPanelHeight = 10
+	petPanelHeight = 12
 
 	statsPanelWidth  = 23
-	statsPanelHeight = 10
+	statsPanelHeight = 12
 
 	panelGap = "  "
 
 	// deathPanelWidth/Height is the Death panel's fixed outer size, per
 	// docs/adr/0007: driven by the Restart prompt's 39-character text, and
-	// padded by one extra row so its total height matches the hatched
-	// composite's (petPanelHeight + gap + Icon bar area), rather than
-	// leaving a one-row discrepancy between mutually exclusive states.
+	// as tall as the hatched composite (petPanelHeight + gap + Icon bar area),
+	// rather than leaving a discrepancy between mutually exclusive states.
+	// Two of its 13 content rows are reserved blank for the cause of Death and
+	// the Care mistake tally.
 	deathPanelWidth  = 43
-	deathPanelHeight = 15
+	deathPanelHeight = 17
 
 	// tabFieldWidth is a tab's own label field width, sized to the longest
 	// label across both the Feed/Play/Clean and Meal/Snack menus ("Clean"/
@@ -35,11 +38,13 @@ const (
 	// outer size of every tab (border and 1-column horizontal padding, no
 	// vertical padding), and iconRowWidth is the Icon bar's fixed total row
 	// width, shared by both menus so switching between them never shifts
-	// anything else on screen — all per docs/adr/0007.
+	// anything else on screen — all per docs/adr/0007. It is wide enough for
+	// four tabs and their three gaps (4*9 + 3*2 = 42), the fourth being the
+	// Cure tab; the three-tab bar and the two-tab chooser centre within it.
 	tabFieldWidth = 5
 	tabWidth      = 9
 	tabHeight     = 3
-	iconRowWidth  = 31
+	iconRowWidth  = 42
 
 	// tabGap is the fixed spacing between adjacent tabs in the Icon bar.
 	tabGap = "  "

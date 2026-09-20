@@ -193,6 +193,8 @@ func (s *Screen) View() string {
 	}
 	statsContent := lipgloss.JoinVertical(lipgloss.Center,
 		messLine,
+		"", // reserved: the Sick indicator
+		"", // reserved: the Attention call
 		"",
 		renderMeter("Hunger", s.pet.Hunger, s.styles.meterGood, s.styles.meterFair, s.styles.meterLow),
 		renderMeter("Happiness", s.pet.Happiness, s.styles.meterGood, s.styles.meterFair, s.styles.meterLow),
@@ -244,6 +246,8 @@ func (s *Screen) viewDeath() string {
 		renderStageLabel(pet.StageDeath, s.styles.stageLabel),
 		"",
 		s.styles.info.Render(infoLine(s.pet, s.now)),
+		"", // reserved: the cause of Death
+		"", // reserved: the Care mistake tally
 		"",
 		// One extra blank row of breathing room before Restart, so the
 		// Death panel's total height matches the hatched composite's
