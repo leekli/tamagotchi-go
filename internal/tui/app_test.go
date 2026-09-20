@@ -2,6 +2,7 @@ package tui_test
 
 import (
 	"fmt"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -14,6 +15,15 @@ import (
 
 	"github.com/leekli/tamagotchi-go/internal/tui"
 )
+
+// TestMain gives the package a live bubblezone manager before any test runs,
+// the way the Next and Welcome Screens' test packages already do. zone.NewGlobal
+// is not safe to call concurrently, so it must not be called from a parallel
+// test: doing so raced with the once-guarded call inside tui.NewApp.
+func TestMain(m *testing.M) {
+	zone.NewGlobal()
+	os.Exit(m.Run())
+}
 
 // fakeScreen is a configurable Screen stand-in for router tests.
 type fakeScreen struct {
@@ -355,7 +365,6 @@ func TestNonScrollableScreenIsNotWrappedInViewport(t *testing.T) {
 func TestViewStripsZoneMarkersFromScreenBodies(t *testing.T) {
 	t.Parallel()
 
-	zone.NewGlobal() // idempotent; NewApp also does this
 	marked := zone.Mark("app-test-zone", "CLICK HERE")
 	require.NotEqual(t, "CLICK HERE", marked, "the manager should wrap the content in markers")
 
