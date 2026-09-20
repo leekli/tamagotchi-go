@@ -49,27 +49,14 @@ TUI framework.
   off Weight gained from Snacking; let it climb too high and the Pet becomes
   Overfed, which speeds up Happiness decay the same way an uncleaned Mess
   does.
-- Neglect can make the Pet Sick: leave a Mess long enough and a `[+] Sick`
-  indicator appears in its STATS panel. Cleaning up does not cure it — only the
-  Cure action does (the fourth Icon bar tab, or <kbd>u</kbd>), and a Pet Cured
-  while its Mess is still there falls Sick again a while later. A Sick Pet can
-  still be fed and played with, but left Sick for eight minutes without a Cure
-  it dies of Sickness.
-- Neglect has a cost. Leave Hunger or Happiness at 0 for longer than a short
-  grace window and the Pet racks up a Care mistake (one per Stat per Empty
-  spell, on a lifetime tally that stays hidden until the Pet dies). Refilling
-  the Stat in time — a Meal for Hunger, a Snack or Play for Happiness — spares
-  you, and a Sick Pet's grace window is paused until you Cure it. Every mistake
-  shortens the Adult Stage by two minutes, down to five, so a badly looked-after
-  Pet lives a shorter life and dies of Neglect. Worse neglect kills sooner: a Pet
-  whose Hunger stays at 0 for ten minutes starves, even while Sick, and one never
-  cleaned dies of Sickness first, at 18 minutes old. The Death panel says which,
-  and how many Care mistakes the Pet had.
+- Neglect has consequences. A Mess left uncleaned makes the Pet Sick (a
+  `[+] Sick` indicator appears; only a Cure ends it, not cleaning up), and a Stat
+  left at 0 for too long costs a hidden Care mistake, which shortens the Pet's
+  life. The Pet can die of Old age, Neglect, Starvation or Sickness, and the
+  Death panel says which, and how many Care mistakes it had.
 - The Pet calls for attention when a Stat empties: `(!) Hungry` (Feed it) or
-  `(!) Sad` (Play with it) appears in its STATS panel, naming each Empty Stat.
-  Once the grace window has lapsed and the mistake is counted, it turns to
-  `(!!) HUNGRY` / `(!!) SAD` and stays until you refill the Stat. A Sick Pet
-  doesn't call, and the call returns after a Cure if a Stat is still Empty. The
+  `(!) Sad` (Play with it) appears in its STATS panel, turning to `(!!) HUNGRY` /
+  `(!!) SAD` once the grace window has lapsed and the mistake is counted. The
   wording, not just the colour, tells the phases apart, so it reads on a
   monochrome terminal too, and it never beeps.
 - A screen-routed TUI that clears the terminal on entry and restores it on exit.
@@ -83,23 +70,122 @@ TUI framework.
 - Adaptive colour that reads on light and dark terminals, with `NO_COLOR` and
   `--no-color` support.
 
+## Game rules
+
+A Pet lives for about an hour of real time. The clock never stops: while the
+game is closed the Pet carries on, and the next launch catches up on everything
+that happened, including a death. All the timings below are deliberately
+compressed from the original toy, so a whole life fits in one sitting.
+
+### A life, from Egg to Death
+
+| Stage | Begins at | Lasts     |
+| ----- | --------- | --------- |
+| Egg   | 0:00      | 30 seconds |
+| Baby  | 0:30      | 10 minutes |
+| Child | 10:30     | 15 minutes |
+| Teen  | 25:30     | 15 minutes |
+| Adult | 40:30     | 20 minutes |
+| Death | 60:30     | —          |
+
+A Pet that is looked after well dies of old age at 60:30. Each Care mistake
+(see below) shortens the Adult Stage by 2 minutes, never below 5, so even the
+worst-kept Pet reaches Adulthood, and the shortest possible life is 45:30. The
+Icon bar and the Care actions appear when the Pet hatches, and disappear again
+when it dies.
+
+### Stats and Decay
+
+Hunger and Happiness each run from 0 to 4, shown as a four-segment meter, and
+both start full. Each falls by one point every 3 minutes (**Decay**), so a full
+Stat is Empty after 12 minutes. Happiness falls twice as fast, one point every
+90 seconds, while the Pet has a Mess or is Overfed (the two don't stack).
+Weight starts at 2 g and never decays: only Snack raises it and Play lowers it,
+between 2 g and 12 g. At 5 g or more the Pet is Overfed.
+
+### Care actions
+
+| Action | Key            | Effect                                              |
+| ------ | -------------- | --------------------------------------------------- |
+| Meal   | <kbd>f</kbd> <kbd>m</kbd> | Hunger +1                                |
+| Snack  | <kbd>f</kbd> <kbd>s</kbd> | Happiness +1, Weight +1 g                |
+| Play   | <kbd>p</kbd>   | Happiness +1, Weight −1 g                           |
+| Clean  | <kbd>c</kbd>   | Removes the Mess                                    |
+| Cure   | <kbd>u</kbd>   | Ends Sickness (does nothing for a healthy Pet)      |
+
+Hunger and Happiness never go above 4. One action gives one point, so an Empty
+Stat needs several actions to fill.
+
+### Mess and Sickness
+
+A Mess appears 5 minutes after the Pet was last cleaned (or born). If it is
+still there 5 minutes later, the Pet falls **Sick**. Cleaning up removes the
+Mess but does not cure the Pet: only a Cure does. A Pet Cured while its Mess is
+still there falls Sick again 5 minutes after the Cure. A Sick Pet can still be
+fed and played with, but one left Sick for 8 minutes without a Cure dies of
+Sickness.
+
+### Neglect and Care mistakes
+
+A Stat is **Empty** when it reaches 0. From that moment the Pet calls for
+attention, and you have a **grace window** of 4 minutes to lift the Stat above 0.
+If you don't, the Pet racks up a **Care mistake**: one per Stat per Empty spell,
+however long the spell lasts. A Pet at 0 Happiness is never killed by it, but
+every Care mistake, from any Stage, shortens its Adult Stage as above. The tally
+stays hidden until the Pet dies.
+
+The Attention call is `(!) Hungry` or `(!) Sad` while the grace window runs, and
+`(!!) HUNGRY` or `(!!) SAD` once it has lapsed, until you refill the Stat. While
+the Pet is Sick it doesn't call, no grace window runs and no mistakes are
+counted; a Cure resumes each window where it left off.
+
+### Death
+
+| Cause      | When                                                                 |
+| ---------- | -------------------------------------------------------------------- |
+| Old age    | The Adult Stage runs out with no Care mistakes on the tally          |
+| Neglect    | The Adult Stage, shortened by Care mistakes, runs out                |
+| Starvation | Hunger stays Empty for 10 minutes (even while the Pet is Sick)       |
+| Sickness   | The Pet stays Sick for 8 minutes without a Cure                      |
+
+Whichever comes first is the cause; if two fall at the very same instant the
+order is Starvation, Sickness, then Neglect or Old age. Death is recorded at the
+exact moment it happened, even if the game was closed at the time. The Death
+panel then shows the Pet's age, weight, cause of death and Care mistakes, its
+Stats stop changing, and <kbd>Enter</kbd> (or a click on the prompt) hatches a
+new Egg.
+
+### Worked examples
+
+| If you…                                   | What happens                                                                                                                       |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Never touch the Pet                       | 5:00 Mess · 8:30 Happiness Empty · 10:00 Sick · 12:00 Hunger Empty · **18:00 dies of Sickness** (Starvation would only come at 22:00) |
+| Keep it clean but never feed or play      | 12:00 Hunger and Happiness Empty · 16:00 two Care mistakes · **22:00 dies of Starvation**                                          |
+| Look after it perfectly                   | No Care mistakes · **60:30 dies of Old age**                                                                                       |
+| Rack up 8 or more Care mistakes           | The Adult Stage shrinks to its 5-minute minimum · **45:30 at the earliest, dies of Neglect**                                       |
+
 ## Controls
 
-| Key                                                                                              | Action                                                                                 |
-| ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
-| <kbd>Enter</kbd>, or a click on the begin prompt                                                 | Begin (advance from the Welcome Screen)                                                |
-| <kbd>↑</kbd> <kbd>↓</kbd> <kbd>PgUp</kbd> <kbd>PgDn</kbd> <kbd>Home</kbd> <kbd>End</kbd> / wheel | Scroll (on scrollable Screens)                                                         |
-| <kbd>←</kbd> <kbd>→</kbd> / <kbd>h</kbd> <kbd>l</kbd>, or a click on an icon                     | Select a Care action or Feed's Meal/Snack choice (Next Screen, once the Pet has hatched) |
-| <kbd>Enter</kbd>                                                                                 | Activate the selected icon or choice (Next Screen)                                     |
-| <kbd>f</kbd> <kbd>p</kbd> <kbd>c</kbd> <kbd>u</kbd>                                              | Feed, Play, Clean, or Cure directly, from any selection (Next Screen)                  |
-| <kbd>m</kbd> <kbd>s</kbd>                                                                        | Choose Meal or Snack directly, once Feed's chooser is open (Next Screen)               |
-| <kbd>Esc</kbd>                                                                                   | Cancel Feed's Meal/Snack chooser (Next Screen); quit (Welcome Screen)                  |
-| <kbd>Ctrl</kbd>+<kbd>C</kbd>                                                                     | Quit (any Screen)                                                                      |
+Everything you can do with a key you can do with the mouse.
+
+| Input                                                                | Action                                                                     |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| <kbd>Enter</kbd>, or a click on the begin prompt                     | Begin (Welcome Screen)                                                     |
+| <kbd>←</kbd> <kbd>→</kbd> / <kbd>h</kbd> <kbd>l</kbd>, or a click on a tab | Select a Care action on the Icon bar, or Meal or Snack once Feed's chooser is open (Next Screen, once the Pet has hatched) |
+| <kbd>Enter</kbd>                                                     | Activate the selected Care action or choice                                |
+| <kbd>f</kbd> <kbd>p</kbd> <kbd>c</kbd> <kbd>u</kbd>                  | Feed (opens the chooser), Play, Clean or Cure directly, from any selection |
+| <kbd>m</kbd> <kbd>s</kbd>                                            | Choose Meal or Snack directly, once Feed's chooser is open                 |
+| <kbd>Esc</kbd>                                                       | Close Feed's chooser (Next Screen); quit (Welcome Screen)                  |
+| <kbd>Enter</kbd>, or a click on the prompt                           | Hatch a new Egg, once the Pet has died (Next Screen)                       |
+| <kbd>Ctrl</kbd>+<kbd>C</kbd>                                         | Quit (any Screen); the Pet is saved first                                  |
+
+While Feed's chooser is open, the direct <kbd>f</kbd> <kbd>p</kbd> <kbd>c</kbd> <kbd>u</kbd>
+keys do nothing until you choose or cancel.
 
 ## Requirements
 
-- Go 1.26 or newer
-- A terminal at least 80×24, with ANSI support
+- Go 1.26 or newer (to build from source)
+- A terminal at least 80×24, with ANSI support; a mouse is optional
 
 ## Install and run
 
@@ -118,8 +204,42 @@ go install github.com/leekli/tamagotchi-go/cmd/tamagotchi-go@latest
 tamagotchi-go
 ```
 
+### Build
+
+To build a binary in the current directory, and run it:
+
+```sh
+go build -o tamagotchi-go ./cmd/tamagotchi-go
+./tamagotchi-go
+```
+
+To stamp it with version information (shown by `--version`), and cross-compile
+for another platform:
+
+```sh
+go build -trimpath -o tamagotchi-go \
+  -ldflags "-s -w \
+    -X github.com/leekli/tamagotchi-go/internal/cli.version=1.0.0 \
+    -X github.com/leekli/tamagotchi-go/internal/cli.commit=$(git rev-parse --short HEAD) \
+    -X github.com/leekli/tamagotchi-go/internal/cli.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  ./cmd/tamagotchi-go
+
+GOOS=windows GOARCH=amd64 go build -o tamagotchi-go.exe ./cmd/tamagotchi-go
+```
+
+`go build ./...` compiles every package without producing a binary, which is a
+quick way to check that everything still builds.
+
+### Flags and the save file
+
 Flags: `--version`, `--no-color`, `--save-path` (override the save file
-location, mainly for testing), `--help`.
+location, mainly for testing), `--help`. The `NO_COLOR` environment variable is
+honoured too.
+
+The Pet is saved as `save.json` in a `tamagotchi-go` folder inside your user
+config directory (`~/.config` on Linux, `~/Library/Application Support` on
+macOS, `%AppData%` on Windows), every 20 seconds and again on quit. Delete the
+file to start over with a fresh Egg.
 
 ## Testing
 
@@ -146,92 +266,109 @@ or the sweep, regenerate them:
 go test ./internal/tui/welcome -run TestWordmarkGoldenFrames -update
 ```
 
+Lint and vulnerability checks, which CI also runs:
+
+```sh
+golangci-lint run ./...                          # lint (auto-format with `golangci-lint fmt ./...`)
+go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+```
+
+`lefthook install` sets up git hooks that run the same gate before each commit
+and push.
+
 ## Architecture
 
 The entrypoint (`cmd/tamagotchi-go`) is a one-liner over `internal/cli`, which
-parses flags and starts the program. `internal/tui` holds the `App` — an
-Elm-style root model that owns exactly one active `Screen`, routes messages to
-it, and applies navigation. Navigation **replaces** the active Screen; Screens
-communicate only by emitting a `NavigateMsg` naming a `ScreenID`, so they never
-depend on each other. The `App` wraps each Screen in shared chrome: a resize
-notice when the terminal is too small, an optional scrolling viewport, and a
-one-line help bar. It also scans each composed frame for
-[bubblezone](https://github.com/lrstanley/bubblezone) markers so Screens can
+parses flags, loads the save (catching the Pet up on the time the game was
+closed) and starts the program. `internal/tui` holds the `App`: an Elm-style
+root model that owns exactly one active `Screen` and routes messages to it.
+Navigation **replaces** the active Screen. Screens never depend on each other;
+they emit a `NavigateMsg` naming a `ScreenID`. The `App` frames every Screen in
+shared chrome (a resize notice below 80×24, an optional scrolling viewport and a
+one-line help bar) and scans each frame for
+[bubblezone](https://github.com/lrstanley/bubblezone) markers, so Screens can
 name precise click targets.
 
 ```mermaid
 flowchart TD
 
-subgraph group_entry["Entry and Wiring"]
-  node_cmd["CLI Binary<br/>[main.go]"]
+subgraph group_entry["Entry Layer"]
+  node_main["CLI Binary<br/>[main.go]"]
   node_cli["CLI Runner<br/>[cli.go]"]
 end
 
-subgraph group_orchestration["TUI Orchestration"]
-  node_app["TUI App<br/>[app.go]"]
-end
-
-subgraph group_screens["Game Screens"]
+subgraph group_ui["TUI Layer"]
+  node_app["App Router<br/>[app.go]"]
   node_welcome["Welcome Screen<br/>[welcome.go]"]
   node_next["Next Screen<br/>[next.go]"]
+  node_panel["Panel Renderer<br/>[panel.go]"]
+  node_zones["Click Zones<br/>[zone.go]"]
 end
 
 subgraph group_domain["Pet Domain"]
-  node_pet["Pet Lifecycle<br/>[pet.go]"]
-  node_simulation["Decay Simulation<br/>[decay.go]"]
+  node_pet["Pet State<br/>[pet.go]"]
   node_care["Care Actions<br/>[actions.go]"]
-  node_neglect["Neglect Tracking<br/>[neglect.go]"]
-  node_store[("Save File<br/>[store.go]")]
+  node_decay["Decay Neglect<br/>[decay.go]"]
+  node_death["Death Rules<br/>[death.go]"]
+  node_beat["Simulation Beat<br/>[beat.go]"]
 end
 
-subgraph group_support["Rendering Support"]
-  node_anim["Frame Clock<br/>[anim.go]"]
+subgraph group_support["Timing Assets"]
+  node_anim["Animation Clock<br/>[anim.go]"]
   node_art["ASCII Art<br/>[art.go]"]
-  node_clicks["Click Targets<br/>[zone.go]"]
-  node_styles["Adaptive Styles<br/>[styles.go]"]
+end
+
+subgraph group_storage["Persistence"]
+  node_store[("Pet Save Store<br/>[store.go]")]
 end
 
 node_player(("Player"))
+node_terminal(("Terminal"))
+node_clock(("System Clock"))
 
-node_player -->|"launches"| node_cmd
-node_cmd -->|"invokes"| node_cli
-node_cli -->|"loads save"| node_store
-node_store -->|"returns Pet"| node_cli
+node_terminal -->|"launches"| node_main
+node_player -->|"begins"| node_welcome
+node_player -->|"cares"| node_next
+node_main -->|"runs"| node_cli
+node_clock -->|"timestamps"| node_cli
+node_cli -->|"loads"| node_store
+node_store -->|"returns state"| node_cli
 node_cli -->|"creates or advances"| node_pet
-node_cli -->|"builds and starts"| node_app
-node_app -->|"routes messages"| node_welcome
-node_app -->|"routes messages"| node_next
-node_welcome -->|"emits navigation"| node_app
-node_welcome -->|"schedules ticks"| node_anim
+node_cli -->|"wires and starts"| node_app
+node_app -->|"dispatches"| node_welcome
+node_welcome -->|"requests navigation"| node_app
+node_app -->|"replaces screen"| node_next
+node_next -->|"advances state"| node_pet
+node_next -->|"invokes care"| node_care
+node_next -->|"schedules beats"| node_beat
+node_beat -->|"delivers beats"| node_next
+node_pet -->|"applies decay"| node_decay
+node_pet -->|"evaluates death"| node_death
+node_next -->|"saves on quit"| node_store
+node_welcome -->|"schedules frames"| node_anim
+node_next -->|"schedules frames"| node_anim
 node_welcome -->|"loads artwork"| node_art
-node_welcome -->|"reads clicks"| node_clicks
-node_next -->|"schedules ticks"| node_anim
 node_next -->|"loads artwork"| node_art
-node_next -->|"reads stage"| node_pet
-node_next -->|"advances time"| node_simulation
-node_next -->|"applies care"| node_care
-node_next -->|"saves Pet"| node_store
-node_next -->|"reads clicks"| node_clicks
-node_simulation -->|"counts lapses"| node_neglect
-node_app -->|"scans frames"| node_clicks
-node_app -->|"uses chrome"| node_styles
-node_welcome -->|"uses styling"| node_styles
-node_next -->|"uses styling"| node_styles
+node_welcome -->|"marks clicks"| node_zones
+node_next -->|"marks clicks"| node_zones
+node_app -->|"scans coordinates"| node_zones
+node_next -->|"renders panels"| node_panel
 
-click node_cmd "https://github.com/leekli/tamagotchi-go/blob/main/cmd/tamagotchi-go/main.go"
+click node_main "https://github.com/leekli/tamagotchi-go/blob/main/cmd/tamagotchi-go/main.go"
 click node_cli "https://github.com/leekli/tamagotchi-go/blob/main/internal/cli/cli.go"
 click node_app "https://github.com/leekli/tamagotchi-go/blob/main/internal/tui/app.go"
 click node_welcome "https://github.com/leekli/tamagotchi-go/blob/main/internal/tui/welcome/welcome.go"
 click node_next "https://github.com/leekli/tamagotchi-go/blob/main/internal/tui/next/next.go"
+click node_panel "https://github.com/leekli/tamagotchi-go/blob/main/internal/tui/panel.go"
+click node_zones "https://github.com/leekli/tamagotchi-go/blob/main/internal/tui/zone.go"
 click node_pet "https://github.com/leekli/tamagotchi-go/blob/main/internal/pet/pet.go"
-click node_simulation "https://github.com/leekli/tamagotchi-go/blob/main/internal/pet/decay.go"
 click node_care "https://github.com/leekli/tamagotchi-go/blob/main/internal/pet/actions.go"
-click node_neglect "https://github.com/leekli/tamagotchi-go/blob/main/internal/pet/neglect.go"
-click node_store "https://github.com/leekli/tamagotchi-go/blob/main/internal/pet/store.go"
+click node_decay "https://github.com/leekli/tamagotchi-go/blob/main/internal/pet/decay.go"
+click node_death "https://github.com/leekli/tamagotchi-go/blob/main/internal/pet/death.go"
+click node_beat "https://github.com/leekli/tamagotchi-go/blob/main/internal/pet/beat.go"
 click node_anim "https://github.com/leekli/tamagotchi-go/blob/main/internal/anim/anim.go"
 click node_art "https://github.com/leekli/tamagotchi-go/blob/main/internal/art/art.go"
-click node_clicks "https://github.com/leekli/tamagotchi-go/blob/main/internal/tui/zone.go"
-click node_styles "https://github.com/leekli/tamagotchi-go/blob/main/internal/tui/styles.go"
+click node_store "https://github.com/leekli/tamagotchi-go/blob/main/internal/pet/store.go"
 
 classDef toneNeutral fill:#f8fafc,stroke:#334155,stroke-width:1.5px,color:#0f172a
 classDef toneBlue fill:#dbeafe,stroke:#2563eb,stroke-width:1.5px,color:#172554
@@ -240,28 +377,26 @@ classDef toneMint fill:#dcfce7,stroke:#16a34a,stroke-width:1.5px,color:#14532d
 classDef toneRose fill:#ffe4e6,stroke:#e11d48,stroke-width:1.5px,color:#881337
 classDef toneIndigo fill:#e0e7ff,stroke:#4f46e5,stroke-width:1.5px,color:#312e81
 classDef toneTeal fill:#ccfbf1,stroke:#0f766e,stroke-width:1.5px,color:#134e4a
-class node_cmd,node_cli toneBlue
-class node_app toneAmber
-class node_welcome,node_next toneMint
-class node_pet,node_simulation,node_care,node_neglect,node_store toneRose
-class node_anim,node_art,node_clicks,node_styles,node_player toneIndigo
+class node_main,node_cli toneBlue
+class node_app,node_welcome,node_next,node_panel,node_zones toneAmber
+class node_pet,node_care,node_decay,node_death,node_beat toneMint
+class node_anim,node_art toneRose
+class node_store,node_player,node_terminal,node_clock toneIndigo
 ```
 
-Two small support packages back both Screens: `internal/anim` (a
-fixed-rate frame clock and easing helpers, injectable so animation is
-deterministic under test) and `internal/art` (a `//go:embed` loader for the
-hand-authored ASCII art, plus a left-right mirror helper).
+`internal/pet` is the domain package, and does no I/O. Its `Advance(now)` is the
+only thing that moves time: Decay, Empty spells and Care mistakes, Sickness and
+the exact moment of Death all follow from it, and one long catch-up gives the same
+Pet as many short steps. Care actions and the derived Attention call live beside
+it. What neglect needs remembered is stored on the Pet rather than derived
+([ADR-0008](docs/adr/0008-care-history-is-stored-not-derived.md)). A `Store`
+interface (file-backed in production) handles persistence: loading happens once
+at startup, and saving is a deferred command on every 20-second `Beat` and again
+on quit.
 
-`internal/pet` is the game's first domain package: the `Pet` type, a pure
-`Advance(now)` that is the only thing that moves time (Decay, Empty spells and
-Care mistakes, Sickness, and the exact moment of Death, all the same whether
-caught up in one long step or many short ones), the Care actions, the derived
-Attention call, and a `Store` interface (file-backed in production) for
-persistence. What neglect needs remembered is stored on the Pet, not derived
-([ADR-0008](docs/adr/0008-care-history-is-stored-not-derived.md)). It performs no direct
-I/O itself — loading happens once at startup in `internal/cli`, and saving
-from the running Next Screen happens via a deferred command, on its own slow
-simulation clock and again on quit.
+Two small packages back both Screens: `internal/anim` (a fixed-rate frame clock,
+so animation is a pure function of a frame count and tests never sleep) and
+`internal/art` (the `//go:embed` loader for the hand-authored ASCII art).
 
 Decisions with lasting consequences are recorded in
 [`docs/adr/`](docs/adr/). The domain vocabulary is defined in
@@ -271,14 +406,16 @@ Decisions with lasting consequences are recorded in
 
 ```
 cmd/tamagotchi-go/      entrypoint
-internal/cli/           command-line argument wiring
-internal/tui/           App router, Screen interface, shared styles and keys
+internal/cli/           flag parsing, save loading and catch-up, wiring the Screens
+internal/tui/           App router, Screen interface, Panel and chip primitives, click zones, palette
 internal/tui/welcome/   Welcome Screen (wordmark, shine sweep, Character, prompt)
-internal/tui/next/      Next Screen (the Pet: art, meters, Sick and Attention call, Care actions, Death panel)
-internal/pet/           Pet domain model: Stage, Decay, neglect, Sickness, Death, Care actions, persistence
+internal/tui/next/      Next Screen (the Pet: art, meters, Sick and Attention call, Icon bar, Death panel)
+internal/pet/           Pet domain model: Stage, Decay, Care actions, neglect, Sickness, Death, Beat, persistence
 internal/anim/          fixed-rate frame clock and easing helpers
 internal/art/           embedded ASCII art loader and mirror helper
 docs/adr/               architecture decision records
+docs/agents/            issue tracker and triage settings for AI agent tooling
+CONTEXT.md              the domain glossary
 .github/workflows/      CI pipeline
 ```
 
