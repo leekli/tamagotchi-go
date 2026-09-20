@@ -315,7 +315,7 @@ func TestDeathPanelHasItsFixedDimensionsAndNoCaption(t *testing.T) {
 			break
 		}
 	}
-	assert.Equal(t, 15, lineCount, "Death panel height per ADR-0007")
+	assert.Equal(t, 17, lineCount, "Death panel height per ADR-0007")
 
 	for _, line := range strings.Split(view, "\n") {
 		if strings.Contains(line, "╭") {
@@ -689,6 +689,13 @@ func TestEggReservesTheSameFootprintAsAHatchedScreen(t *testing.T) {
 	baby := babyScreen(t, pet.New(born), &fakeStore{})
 
 	assert.Equal(t, lineCount(baby.View()), lineCount(egg.View()))
+
+	// View is centred to the full body size, so the line count alone is the same
+	// for any content height. Where the content starts is what shows Egg
+	// reserving the whole envelope: a shorter Egg would start lower.
+	eggTop, _ := occupiedRows(t, egg.View())
+	babyTop, _ := occupiedRows(t, baby.View())
+	assert.Equal(t, babyTop, eggTop, "Hatch should not shift the content vertically")
 }
 
 func TestViewShowsAgeAndWeight(t *testing.T) {
@@ -787,6 +794,188 @@ var ansiSeq = regexp.MustCompile("\x1b\\[[0-9;]*m")
 // stripANSI removes SGR colour sequences so plain-text art and labels can be
 // matched, the same helper the Welcome Screen's tests use.
 func stripANSI(s string) string { return ansiSeq.ReplaceAllString(s, "") }
+
+// zoneMarker matches the invisible markers bubblezone's zone.Mark wraps a click
+// target in. They are zero-width on a real terminal but are runes in the raw
+// view, and stripANSI does not remove them. Measuring widths needs them gone,
+// and zone.Scan (which would strip them) must not be called from a parallel test:
+// see iconZone.
+var zoneMarker = regexp.MustCompile("\x1b\\[[0-9]+z")
+
+// visibleText is view as a terminal would draw it: no colour and no zone
+// markers.
+func visibleText(view string) string { return zoneMarker.ReplaceAllString(stripANSI(view), "") }
+
+// occupiedRows returns the index of the first and last rows of view that hold
+// anything but spaces. View is centred by lipgloss.Place to the full body size,
+// so its raw line count is the same for every state; the occupied rows show how
+// tall the content really is and where it starts.
+func occupiedRows(t *testing.T, view string) (first, last int) {
+	t.Helper()
+	first, last = -1, -1
+	for i, line := range strings.Split(visibleText(view), "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		if first < 0 {
+			first = i
+		}
+		last = i
+	}
+	require.GreaterOrEqual(t, first, 0, "the view should not be blank")
+	return first, last
+}
+
+// lineSpan returns the column of a line's first non-space rune and the column
+// just after its last, counting runes (every glyph the Screen draws is one
+// column wide).
+func lineSpan(line string) (left, right int) {
+	runes := []rune(line)
+	trimmed := []rune(strings.TrimRight(line, " "))
+	return len(runes) - len([]rune(strings.TrimLeft(line, " "))), len(trimmed)
+}
+
+// occupiedColumns returns the leftmost and rightmost-plus-one occupied columns
+// across every non-blank row of view.
+func occupiedColumns(view string) (left, right int) {
+	left = -1
+	for _, line := range strings.Split(visibleText(view), "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		l, r := lineSpan(line)
+		if left < 0 || l < left {
+			left = l
+		}
+		right = max(right, r)
+	}
+	return left, right
+}
+
+// The Next Screen's shared envelope, per docs/adr/0007: every state occupies
+// this many columns and rows, centred in the body.
+const (
+	envelopeWidth  = 43
+	envelopeHeight = 17
+	bodyHeight     = 23 // the 80x24 minimum terminal less the help-bar row
+)
+
+// TestEnvelopeIs43By17ForEveryState proves each state occupies the same
+// 43x17 envelope, centred, and that it fits the minimum terminal with room to
+// spare. The hatched states are measured with a flourish showing so the last
+// reserved row is occupied and the full height is visible; the Egg, which has
+// no Icon bar or flourish yet, is checked to start where the hatched states do
+// (it reserves the same rows, blank) and to show its 12 PET/STATS rows.
+func TestEnvelopeIs43By17ForEveryState(t *testing.T) {
+	t.Parallel()
+
+	top := (bodyHeight - envelopeHeight) / 2 // where lipgloss.Place centres a 17-row block
+	play := func(s tui.Screen) tui.Screen { return typeKeys(s, 'p') }
+
+	hatched := map[string]tui.Screen{
+		"Baby":  play(babyScreen(t, pet.New(born), &fakeStore{})),
+		"Child": play(childScreen(t, caredForUntil(childAt), &fakeStore{})),
+		"Teen":  play(teenScreen(t, caredForUntil(teenAt), &fakeStore{})),
+		"Adult": play(adultScreen(t, caredForUntil(adultAt), &fakeStore{})),
+		"Death": deathScreen(t, pet.New(born), &fakeStore{}),
+	}
+	for name, s := range hatched {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			first, last := occupiedRows(t, s.View())
+			left, right := occupiedColumns(s.View())
+
+			assert.Equal(t, top, first, "the envelope should be centred vertically")
+			assert.Equal(t, envelopeHeight, last-first+1, "envelope height")
+			assert.Equal(t, envelopeWidth, right-left, "envelope width")
+			assert.Less(t, last, bodyHeight, "the envelope must fit inside the minimum terminal's body")
+		})
+	}
+
+	t.Run("Egg", func(t *testing.T) {
+		t.Parallel()
+
+		egg := sizedScreen(t, pet.New(born), &fakeStore{})
+		first, last := occupiedRows(t, egg.View())
+		left, right := occupiedColumns(egg.View())
+
+		assert.Equal(t, top, first, "the Egg reserves the same envelope, so it starts where the hatched states do")
+		assert.Equal(t, 12, last-first+1, "the Egg shows only its 12-row PET and STATS panels")
+		assert.Equal(t, envelopeWidth, right-left, "envelope width")
+	})
+}
+
+// TestPetAndStatsPanelsAre12RowsTall measures the PET and STATS panels from
+// their shared top border row to their shared bottom border row.
+func TestPetAndStatsPanelsAre12RowsTall(t *testing.T) {
+	t.Parallel()
+
+	panelRows := func(t *testing.T, view string) int {
+		t.Helper()
+		top, bottom := -1, -1
+		for i, line := range strings.Split(stripANSI(view), "\n") {
+			if top < 0 && strings.Count(line, "╭") == 2 {
+				top = i
+			}
+			if top >= 0 && bottom < 0 && strings.Count(line, "╰") == 2 {
+				bottom = i
+			}
+		}
+		require.True(t, top >= 0 && bottom >= 0, "PET and STATS borders should be found")
+		return bottom - top + 1
+	}
+
+	screens := map[string]tui.Screen{
+		"Egg":   sizedScreen(t, pet.New(born), &fakeStore{}),
+		"Baby":  babyScreen(t, pet.New(born), &fakeStore{}),
+		"Child": childScreen(t, caredForUntil(childAt), &fakeStore{}),
+		"Teen":  teenScreen(t, caredForUntil(teenAt), &fakeStore{}),
+		"Adult": adultScreen(t, caredForUntil(adultAt), &fakeStore{}),
+	}
+	for name, s := range screens {
+		assert.Equal(t, 12, panelRows(t, s.View()), "PET and STATS height at %s", name)
+	}
+}
+
+// TestIconBarAndChooserStayCentredInTheEnvelope proves the three-tab bar and
+// the narrower two-tab Meal/Snack chooser both sit centred in the 43-column
+// envelope, so switching between them never shifts anything. Centring is
+// checked as equal gaps either side (to within the one column that rounding an
+// odd gap can cost), independent of how the row is built.
+func TestIconBarAndChooserStayCentredInTheEnvelope(t *testing.T) {
+	t.Parallel()
+
+	// Two Screens: Update mutates in place, so opening the chooser on bar would
+	// turn bar into the chooser too.
+	bar := babyScreen(t, pet.New(born), &fakeStore{})
+	chooser := typeKeys(babyScreen(t, pet.New(born), &fakeStore{}), 'f')
+
+	for name, tc := range map[string]struct {
+		s     tui.Screen
+		label string
+	}{
+		"Feed/Play/Clean bar": {bar, "Feed"},
+		"Meal/Snack chooser":  {chooser, "Meal"},
+	} {
+		view := visibleText(tc.s.View())
+		envLeft, envRight := occupiedColumns(view)
+		require.Equal(t, envelopeWidth, envRight-envLeft)
+
+		var tabLine string
+		for _, line := range strings.Split(view, "\n") {
+			if strings.Contains(line, tc.label) {
+				tabLine = line
+			}
+		}
+		require.NotEmpty(t, tabLine, "the %s label row should be found", name)
+
+		left, right := lineSpan(tabLine)
+		leftGap, rightGap := left-envLeft, envRight-right
+		assert.LessOrEqual(t, max(leftGap-rightGap, rightGap-leftGap), 1,
+			"%s should be centred in the envelope (gaps %d left, %d right)", name, leftGap, rightGap)
+	}
+}
 
 func TestIconBarHiddenUntilBabyStage(t *testing.T) {
 	t.Parallel()
@@ -1242,6 +1431,9 @@ func TestViewHeightIsStableAcrossMessAndFlourishStateChanges(t *testing.T) {
 
 	clean := babyScreen(t, pet.New(born), &fakeStore{})
 	baseline := lineCount(clean.View())
+	// Measured now: Update mutates the Screen in place, so once the flourish
+	// below is applied to clean it is no longer a clean baseline.
+	cleanTop, cleanLast := occupiedRows(t, clean.View())
 
 	p := pet.New(born)
 	p.LastCleanedAt = born.Add(-pet.MessInterval)
@@ -1251,6 +1443,14 @@ func TestViewHeightIsStableAcrossMessAndFlourishStateChanges(t *testing.T) {
 	flourishing, _ := clean.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
 	require.Contains(t, stripANSI(flourishing.View()), "plays happily")
 	assert.Equal(t, baseline, lineCount(flourishing.View()), "a visible flourish should not change the view's height")
+
+	// The line count is the full body height whatever the content, so also
+	// check the content itself does not move: where it starts and ends.
+	messyTop, _ := occupiedRows(t, messy.View())
+	flourishTop, flourishLast := occupiedRows(t, flourishing.View())
+	assert.Equal(t, cleanTop, messyTop, "a Mess appearing should not shift the content")
+	assert.Equal(t, cleanTop, flourishTop, "a flourish appearing should not shift the content")
+	assert.Equal(t, flourishLast, cleanLast+1, "the flourish fills the row reserved for it, and nothing else moves")
 }
 
 // TestIconBarMouseIsSafeBeforeAnyManagerExists proves updateIconBarMouse
