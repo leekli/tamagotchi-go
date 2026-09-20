@@ -120,12 +120,20 @@ type Pet struct {
 	// LastSeenAt is the wall-clock time Hunger Decay was last applied up to;
 	// it drives the offline catch-up applied on load.
 	LastSeenAt time.Time
-	// HappinessLastSeenAt is the same, for Happiness specifically. Tracked
-	// separately from LastSeenAt because Happiness's Decay interval changes
-	// (faster) while the Pet HasMess: a single shared anchor can't correctly
-	// serve two stats that step at different rates — see docs/adr/0006's
-	// update note.
+	// HappinessLastSeenAt is the wall-clock time Happiness Decay has been
+	// applied up to. Unlike LastSeenAt it moves all the way to the time of
+	// each Advance, because Happiness's Decay rate changes (faster while the
+	// Pet HasMess or is Overfed): the progress already made toward the next
+	// point is kept in HappinessProgress instead, so it survives a rate
+	// change exactly — see docs/adr/0006's update notes.
 	HappinessLastSeenAt time.Time
+	// HappinessProgress is how far Happiness has got toward its next Decay
+	// point as of HappinessLastSeenAt, measured in normal-rate time: a point
+	// is lost each time it reaches HappinessDecayInterval, and it fills twice
+	// as fast while the accelerated rate applies. It is always less than
+	// HappinessDecayInterval after an Advance. Zero on any save file written
+	// before it existed, which reads as "no partial progress yet".
+	HappinessProgress time.Duration
 	// LastCleanedAt is the wall-clock time the Pet was last Cleaned. It
 	// defaults to CreatedAt for a freshly-hatched Pet, and — via a save-file
 	// load default — for any pre-Mess save file too, both of which correctly
@@ -262,5 +270,9 @@ func withLoadDefaults(p Pet) Pet {
 	// here, at load, rather than leaving it out of range until the next Feed
 	// or Play happens to correct it as a side effect of its own min/max.
 	p.Weight = min(max(p.Weight, BaseWeight), MaxWeight)
+	// A negative HappinessProgress can only come from a corrupted or
+	// hand-edited save file. Left alone, one below minus a whole interval
+	// would make Advance hand Happiness points back without time passing.
+	p.HappinessProgress = max(p.HappinessProgress, 0)
 	return p
 }

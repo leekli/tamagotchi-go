@@ -36,7 +36,7 @@ func TestAdvance(t *testing.T) {
 			// This table is about generic elapsed-duration decay mechanics,
 			// not the Mess interaction (covered separately by
 			// TestAdvanceDecaysHappinessFasterWithAMess and
-			// TestAdvancePicksTheMessRateAsOfNow) — clean it well past every
+			// TestAdvanceSplitsTheWindowAtMessOnset) — clean it well past every
 			// elapsed value below so HasMess never trips and Happiness
 			// decays at the same rate as Hunger throughout.
 			p.LastCleanedAt = born.Add(24 * time.Hour)
@@ -53,6 +53,51 @@ func TestAdvance(t *testing.T) {
 			// TestAdvanceAccumulatesAcrossRepeatedShortCalls).
 			wantConsumed := (tt.elapsed / pet.HungerDecayInterval) * pet.HungerDecayInterval
 			assert.Equal(t, born.Add(wantConsumed), advanced.LastSeenAt)
+		})
+	}
+}
+
+// TestAdvanceIgnoredPetTimeline pins the worked timeline from the neglect spec
+// for a Pet that is never cared for: Mess appears at 5:00, which doubles
+// Happiness's Decay rate from then on while keeping the two thirds of a step
+// already made by 5:00, so Happiness runs 3 at 3:00, 2 at 5:30, 1 at 7:00 and
+// 0 at 8:30. Hunger's rate never changes: 0 at 12:00. Every instant is checked
+// one nanosecond either side of its boundary, in a single Advance call.
+func TestAdvanceIgnoredPetTimeline(t *testing.T) {
+	t.Parallel()
+
+	born := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	at := func(minutes, seconds int) time.Duration {
+		return time.Duration(minutes)*time.Minute + time.Duration(seconds)*time.Second
+	}
+
+	tests := map[string]struct {
+		elapsed       time.Duration
+		wantHunger    int
+		wantHappiness int
+	}{
+		"just before the first step":        {at(3, 0) - time.Nanosecond, 4, 4},
+		"3:00 first step of both":           {at(3, 0), 3, 3},
+		"just before Happiness speeds up":   {at(5, 30) - time.Nanosecond, 3, 3},
+		"5:30 the carried step lands":       {at(5, 30), 3, 2},
+		"6:00 Hunger's second step":         {at(6, 0), 2, 2},
+		"7:00 Happiness at the fast rate":   {at(7, 0), 2, 1},
+		"just before Happiness is empty":    {at(8, 30) - time.Nanosecond, 2, 1},
+		"8:30 Happiness is empty":           {at(8, 30), 2, 0},
+		"9:00 Hunger's third step":          {at(9, 0), 1, 0},
+		"just before Hunger is empty":       {at(12, 0) - time.Nanosecond, 1, 0},
+		"12:00 Hunger is empty":             {at(12, 0), 0, 0},
+		"long afterwards both stay at zero": {at(12, 0) + time.Hour, 0, 0},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			advanced := pet.New(born).Advance(born.Add(tt.elapsed))
+
+			assert.Equal(t, tt.wantHunger, advanced.Hunger, "Hunger")
+			assert.Equal(t, tt.wantHappiness, advanced.Happiness, "Happiness")
 		})
 	}
 }
@@ -121,6 +166,25 @@ func TestAdvanceIgnoresClockGoingBackwards(t *testing.T) {
 	assert.Equal(t, p, rewound, "a clock that went backwards should leave the Pet unchanged")
 }
 
+// TestAdvanceIgnoresAClockBehindOnlyTheHappinessAnchor covers the gap between
+// the two anchors. After an Advance to 4:00, Hunger's anchor sits back at 3:00
+// (its last whole step) while Happiness's has moved on to 4:00 itself. A time
+// between the two is ahead of one anchor but behind the other, and must still
+// be treated as the clock going backwards: applying it would move Happiness's
+// anchor backwards and corrupt its progress.
+func TestAdvanceIgnoresAClockBehindOnlyTheHappinessAnchor(t *testing.T) {
+	t.Parallel()
+
+	born := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	p := pet.New(born).Advance(born.Add(4 * time.Minute))
+	require.True(t, p.LastSeenAt.Before(p.HappinessLastSeenAt), "sanity check: the anchors should differ")
+
+	between := p.LastSeenAt.Add(30 * time.Second)
+	require.True(t, between.Before(p.HappinessLastSeenAt), "sanity check: the time should be behind Happiness's anchor")
+
+	assert.Equal(t, p, p.Advance(between))
+}
+
 // TestAdvanceDecaysHappinessFasterWithAMess is a direct comparison, not just
 // "some decay happened": the same elapsed time must cost a messy Pet more
 // Happiness than a clean one.
@@ -140,24 +204,81 @@ func TestAdvanceDecaysHappinessFasterWithAMess(t *testing.T) {
 		"a Pet with a Mess should lose more Happiness over the same elapsed time")
 }
 
-// TestAdvancePicksTheMessRateAsOfNow proves Advance uses a single decay rate
-// for the whole elapsed window, chosen by whether the Pet HasMess at now —
-// not an exact split at the moment the Mess would have appeared partway
-// through the window.
-func TestAdvancePicksTheMessRateAsOfNow(t *testing.T) {
+// TestAdvanceSplitsTheWindowAtMessOnset replaces the test that used to lock in
+// the retired "one rate for the whole window, chosen by whether the Pet HasMess
+// at now" rule. A window that straddles the moment Mess appears must be split
+// there: only the part after it decays at the faster rate. Here the window
+// runs from birth to 6:30, so Mess appears at 5:00 and Happiness is at 2 (the
+// old rule wrongly gave 0, applying the fast rate from birth).
+func TestAdvanceSplitsTheWindowAtMessOnset(t *testing.T) {
+	t.Parallel()
+
+	born := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	advanced := pet.New(born).Advance(born.Add(pet.MessInterval + 90*time.Second))
+
+	assert.Equal(t, 2, advanced.Happiness)
+}
+
+// The next three tests pin proportional carry across the rate changes a Care
+// action causes. Each applies its action straight after an Advance to the
+// instant of the action, then checks the very next Happiness point lands
+// exactly when the unfinished fraction of the step predicts. A restart of the
+// step (or a retroactive rate change) would land it minutes away.
+
+// TestAdvanceCarriesProgressAcrossClean: a Pet messy from birth has made 60s
+// at the double rate by 1:00, i.e. two thirds of a step. Clean drops the rate
+// to normal, so the remaining third takes 60s more: the point lands at 2:00.
+func TestAdvanceCarriesProgressAcrossClean(t *testing.T) {
 	t.Parallel()
 
 	born := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	p := pet.New(born)
+	p.LastCleanedAt = born.Add(-pet.MessInterval) // messy from the start
 
-	// The window [born, now] straddles the Mess boundary (MessInterval after
-	// born), but the Pet HasMess by the end of it, so the whole window should
-	// decay Happiness at the faster, messy rate.
-	now := born.Add(pet.MessInterval + pet.AcceleratedHappinessDecayInterval)
-	advanced := p.Advance(now)
+	cleanedAt := born.Add(time.Minute)
+	p = p.Advance(cleanedAt).Clean(cleanedAt)
 
-	wantSteps := int((pet.MessInterval + pet.AcceleratedHappinessDecayInterval) / pet.AcceleratedHappinessDecayInterval)
-	assert.Equal(t, pet.MaxStat-wantSteps, advanced.Happiness)
+	assert.Equal(t, pet.MaxStat, p.Advance(born.Add(2*time.Minute-time.Nanosecond)).Happiness)
+	assert.Equal(t, pet.MaxStat-1, p.Advance(born.Add(2*time.Minute)).Happiness)
+}
+
+// TestAdvanceCarriesProgressAcrossOverfedStarting: a Pet one Snack short of
+// Overfed has made 60s at the normal rate by 1:00, one third of a step. A Snack
+// makes it Overfed, doubling the rate, so the remaining two thirds take 60s:
+// the point lands at 2:00.
+func TestAdvanceCarriesProgressAcrossOverfedStarting(t *testing.T) {
+	t.Parallel()
+
+	born := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	p := pet.New(born)
+	p.Weight = pet.OverfedThreshold - 1
+
+	snackAt := born.Add(time.Minute)
+	p = p.Advance(snackAt).Feed(pet.Snack)
+	require.True(t, p.Overfed(), "the Snack should have made the Pet Overfed")
+
+	assert.Equal(t, pet.MaxStat, p.Advance(born.Add(2*time.Minute-time.Nanosecond)).Happiness)
+	assert.Equal(t, pet.MaxStat-1, p.Advance(born.Add(2*time.Minute)).Happiness)
+}
+
+// TestAdvanceCarriesProgressAcrossOverfedEnding: an Overfed Pet has made 45s
+// at the double rate by 0:45, i.e. 90s of normal-rate progress: half a step.
+// Play resolves the Overfed state, halving the rate, so the remaining half
+// takes 90s: the point lands at 2:15.
+func TestAdvanceCarriesProgressAcrossOverfedEnding(t *testing.T) {
+	t.Parallel()
+
+	born := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	p := pet.New(born)
+	p.Weight = pet.OverfedThreshold
+
+	playAt := born.Add(45 * time.Second)
+	p = p.Advance(playAt).Play()
+	require.False(t, p.Overfed(), "Play should have resolved the Overfed state")
+
+	assert.Equal(t, pet.MaxStat, p.Advance(born.Add(135*time.Second-time.Nanosecond)).Happiness)
+	assert.Equal(t, pet.MaxStat-1, p.Advance(born.Add(135*time.Second)).Happiness)
 }
 
 // TestAdvanceDecaysHappinessFasterWhenOverfed mirrors

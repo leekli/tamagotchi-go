@@ -56,9 +56,13 @@ type saveFile struct {
 	// bump is needed for either field.
 	HappinessLastSeenAt time.Time `json:"happiness_last_seen_at,omitzero"`
 	LastCleanedAt       time.Time `json:"last_cleaned_at,omitzero"`
-	Hunger              int       `json:"hunger"`
-	Happiness           int       `json:"happiness"`
-	Weight              int       `json:"weight"`
+	// HappinessProgress is absent from any save file written before Decay was
+	// made exact; its zero value reads as "no partial progress yet", so no
+	// schema_version bump is needed for it either.
+	HappinessProgress time.Duration `json:"happiness_progress_ns,omitzero"`
+	Hunger            int           `json:"hunger"`
+	Happiness         int           `json:"happiness"`
+	Weight            int           `json:"weight"`
 }
 
 // Load implements Store. A missing file is the normal first-run case, not an
@@ -86,6 +90,7 @@ func (f FileStore) Load() (Pet, bool, error) {
 		CreatedAt:           sf.CreatedAt,
 		LastSeenAt:          sf.LastSeenAt,
 		HappinessLastSeenAt: sf.HappinessLastSeenAt,
+		HappinessProgress:   sf.HappinessProgress,
 		LastCleanedAt:       sf.LastCleanedAt,
 		Hunger:              sf.Hunger,
 		Happiness:           sf.Happiness,
@@ -108,6 +113,7 @@ func (f FileStore) Save(p Pet) error {
 		CreatedAt:           p.CreatedAt,
 		LastSeenAt:          p.LastSeenAt,
 		HappinessLastSeenAt: p.HappinessLastSeenAt,
+		HappinessProgress:   p.HappinessProgress,
 		LastCleanedAt:       p.LastCleanedAt,
 		Hunger:              p.Hunger,
 		Happiness:           p.Happiness,
