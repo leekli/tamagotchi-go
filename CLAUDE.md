@@ -48,8 +48,9 @@ wrong, fix the check and say why in the commit.
   runs each composed frame through `zone.Scan` (bubblezone) so Screens can name
   click targets with `zone.Mark` / `zone.Get(id).InBounds` (ADR-0005).
 - **Full-bleed vs scrollable** (ADR-0004): a Screen authored to fit 80×24 that
-  paints every cell returns `Scrollable() == false` (the Welcome Screen);
-  free-flowing text Screens that can overflow return `true` (the Next Screen).
+  paints every cell returns `Scrollable() == false` (the Welcome and Next
+  Screens); a free-flowing text Screen that can overflow would return `true`
+  (none does today).
 - **Animation**: `internal/anim` is the frame clock — `Tick`/`TickMsg` at
   `anim.FPS` (~15). A Screen advances an integer frame counter on each `TickMsg`
   and re-issues `Tick`; all motion is a pure function of that counter, so tests

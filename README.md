@@ -65,13 +65,21 @@ TUI framework.
   whose Hunger stays at 0 for ten minutes starves, even while Sick, and one never
   cleaned dies of Sickness first, at 18 minutes old. The Death panel says which,
   and how many Care mistakes the Pet had.
+- The Pet calls for attention when a Stat empties: `(!) Hungry` (Feed it) or
+  `(!) Sad` (Play with it) appears in its STATS panel, naming each Empty Stat.
+  Once the grace window has lapsed and the mistake is counted, it turns to
+  `(!!) HUNGRY` / `(!!) SAD` and stays until you refill the Stat. A Sick Pet
+  doesn't call, and the call returns after a Cure if a Stat is still Empty. The
+  wording, not just the colour, tells the phases apart, so it reads on a
+  monochrome terminal too, and it never beeps.
 - A screen-routed TUI that clears the terminal on entry and restores it on exit.
 - A hand-authored ASCII wordmark with a one-pass shine sweep, a wandering
   animated Character, and a pulsing begin prompt — all on a deterministic,
   test-driven frame clock (`internal/anim`).
 - Keyboard **and** mouse throughout; clicks are matched to precise on-screen
   regions with [bubblezone](https://github.com/lrstanley/bubblezone).
-- Scrolls gracefully in small terminals; shows a resize hint below 80×24.
+- Shows a resize hint below 80×24, and the App can scroll a longer Screen in a
+  viewport (the Welcome and Next Screens are authored to fit and never need it).
 - Adaptive colour that reads on light and dark terminals, with `NO_COLOR` and
   `--no-color` support.
 
@@ -239,14 +247,18 @@ class node_pet,node_simulation,node_care,node_neglect,node_store toneRose
 class node_anim,node_art,node_clicks,node_styles,node_player toneIndigo
 ```
 
-Two small support packages back the Welcome Screen: `internal/anim` (a
+Two small support packages back both Screens: `internal/anim` (a
 fixed-rate frame clock and easing helpers, injectable so animation is
 deterministic under test) and `internal/art` (a `//go:embed` loader for the
 hand-authored ASCII art, plus a left-right mirror helper).
 
-`internal/pet` is the game's first domain package: the `Pet` type, its
-derived Stage and Age, a pure `Advance(now)` Decay function, and a `Store`
-interface (file-backed in production) for persistence. It performs no direct
+`internal/pet` is the game's first domain package: the `Pet` type, a pure
+`Advance(now)` that is the only thing that moves time (Decay, Empty spells and
+Care mistakes, Sickness, and the exact moment of Death, all the same whether
+caught up in one long step or many short ones), the Care actions, the derived
+Attention call, and a `Store` interface (file-backed in production) for
+persistence. What neglect needs remembered is stored on the Pet, not derived
+([ADR-0008](docs/adr/0008-care-history-is-stored-not-derived.md)). It performs no direct
 I/O itself — loading happens once at startup in `internal/cli`, and saving
 from the running Next Screen happens via a deferred command, on its own slow
 simulation clock and again on quit.
@@ -262,8 +274,8 @@ cmd/tamagotchi-go/      entrypoint
 internal/cli/           command-line argument wiring
 internal/tui/           App router, Screen interface, shared styles and keys
 internal/tui/welcome/   Welcome Screen (wordmark, shine sweep, Character, prompt)
-internal/tui/next/      Next Screen (the Pet: art, meters, age, weight, Care actions)
-internal/pet/           Pet domain model: Stage, Decay, Care actions, and persistence
+internal/tui/next/      Next Screen (the Pet: art, meters, Sick and Attention call, Care actions, Death panel)
+internal/pet/           Pet domain model: Stage, Decay, neglect, Sickness, Death, Care actions, persistence
 internal/anim/          fixed-rate frame clock and easing helpers
 internal/art/           embedded ASCII art loader and mirror helper
 docs/adr/               architecture decision records

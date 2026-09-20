@@ -321,6 +321,49 @@ func TestCureKeyboardAndMouseReachTheSameState(t *testing.T) {
 	assert.False(t, byMouse.LastCuredAt.IsZero())
 }
 
+// TestTheAttentionCallCallsForEachEmptyStatAndClearsAsTheyAreRefilled runs the
+// real program with a hatched Pet whose Hunger and Happiness are both Empty: the
+// STATS panel names both, a Meal takes Hunger off the call, and Play clears it.
+// The Pet is one kept up to date as of the Screen's first frame, as in runCure.
+func TestTheAttentionCallCallsForEachEmptyStatAndClearsAsTheyAreRefilled(t *testing.T) {
+	born := time.Now()
+	at := born.Add(pet.EggDuration + time.Second)
+	initial := pet.New(born)
+	initial.LastSeenAt, initial.HappinessLastSeenAt, initial.LastCleanedAt = at, at, at
+	initial.Hunger, initial.Happiness = 0, 0
+	initial.HungerEmpty = pet.EmptySpell{Since: at, GraceEndsAt: at.Add(pet.GraceWindow)}
+	initial.HappinessEmpty = initial.HungerEmpty
+
+	tm := teatest.NewTestModel(t, newTestAppWithPet(t, initial), teatest.WithInitialTermSize(100, 30))
+	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
+		return bytes.Contains(b, []byte("Press Enter or click to begin"))
+	}, teatest.WithDuration(3*time.Second))
+	tm.Send(tea.KeyMsg{Type: tea.KeyEnter})
+
+	waitForCue := func(want string) {
+		t.Helper()
+		teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
+			return bytes.Contains(b, []byte(want))
+		}, teatest.WithDuration(3*time.Second))
+	}
+	waitForCue("(!) Hungry & Sad")
+
+	tm.Send(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
+	tm.Send(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}})
+	waitForCue("(!) Sad")
+
+	tm.Send(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
+	waitForCue("plays happily")
+
+	tm.Send(tea.KeyMsg{Type: tea.KeyCtrlC})
+	tm.WaitFinished(t, teatest.WithFinalTimeout(3*time.Second))
+	final, ok := tm.FinalModel(t).(*tui.App)
+	require.True(t, ok)
+	screen, ok := final.Current().(*next.Screen)
+	require.True(t, ok)
+	assert.NotContains(t, screen.View(), "(!", "both Stats refilled, so nothing calls")
+}
+
 // runFeedSnack drives the Welcome Screen to the Next Screen, fast-forwards
 // past EggDuration the same way runPlayThenClean does, then selects Feed and
 // chooses Snack either by hotkey or by clicking the icon-bar and chooser

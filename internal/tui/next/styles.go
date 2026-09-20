@@ -11,9 +11,9 @@ import (
 // per docs/adr/0007: petPanel is sized to Adult's art (the widest of any
 // Stage, 14 columns); statsPanel to the Hunger/Happiness Meter row (19
 // characters, e.g. "Happiness  ▓▓▓▓ 4/4"). Both are 12 rows tall: STATS has 8
-// content rows, of which today's content uses 6 and the rest are reserved
-// blank for the Sick indicator and the Attention call. panelGap is the fixed
-// spacing between them when shown side by side.
+// content rows, one each for Mess, the Sick indicator and the Attention call
+// (blank when absent), a spacer, the two Meters, a spacer and the Age/Weight
+// line. panelGap is the fixed spacing between them when shown side by side.
 const (
 	petPanelWidth  = 18
 	petPanelHeight = 12
@@ -27,8 +27,8 @@ const (
 	// docs/adr/0007: driven by the Restart prompt's 39-character text, and
 	// as tall as the hatched composite (petPanelHeight + gap + Icon bar area),
 	// rather than leaving a discrepancy between mutually exclusive states.
-	// Two of its 13 content rows are reserved blank for the cause of Death and
-	// the Care mistake tally.
+	// Its 13 content rows include the cause of Death and the Care mistake
+	// tally.
 	deathPanelWidth  = 43
 	deathPanelHeight = 17
 
@@ -57,14 +57,16 @@ type styles struct {
 	statsPanel tui.Panel // frames Hunger/Happiness/Mess/Age/Weight
 	deathPanel tui.Panel // the single, uncaptioned panel shown once the Pet has died
 
-	art        lipgloss.Style // the Pet's Egg/Baby/Child/Teen art
-	stageLabel lipgloss.Style // the Stage label ("Egg"/"Baby"/"Child"/"Teen")
-	meterGood  lipgloss.Style // Meter grading: 3-4 of pet.MaxStat
-	meterFair  lipgloss.Style // Meter grading: 2
-	meterLow   lipgloss.Style // Meter grading: 0-1
-	info       lipgloss.Style // Age and Weight
-	mess       lipgloss.Style // the Mess indicator glyph
-	sick       lipgloss.Style // the Sick indicator
+	art             lipgloss.Style // the Pet's Egg/Baby/Child/Teen art
+	stageLabel      lipgloss.Style // the Stage label ("Egg"/"Baby"/"Child"/"Teen")
+	meterGood       lipgloss.Style // Meter grading: 3-4 of pet.MaxStat
+	meterFair       lipgloss.Style // Meter grading: 2
+	meterLow        lipgloss.Style // Meter grading: 0-1
+	info            lipgloss.Style // Age and Weight
+	mess            lipgloss.Style // the Mess indicator glyph
+	sick            lipgloss.Style // the Sick indicator
+	attention       lipgloss.Style // the Attention call while a grace window is running
+	attentionLapsed lipgloss.Style // the Attention call once a window has lapsed
 
 	tabBorder   lipgloss.AdaptiveColor // every tab's border, selected or not
 	tabNormal   lipgloss.Style         // an unselected tab's label
@@ -85,14 +87,16 @@ func newStyles(p tui.Palette) styles {
 		statsPanel: tui.Panel{Width: statsPanelWidth, Height: statsPanelHeight, Caption: "STATS", PaddingX: 1, PaddingY: 1, Border: p.Dim},
 		deathPanel: tui.Panel{Width: deathPanelWidth, Height: deathPanelHeight, PaddingX: 1, PaddingY: 1, Border: p.Dim},
 
-		art:        lipgloss.NewStyle().Foreground(p.Accent),
-		stageLabel: lipgloss.NewStyle().Foreground(p.Dim),
-		meterGood:  lipgloss.NewStyle().Foreground(p.Screen),
-		meterFair:  lipgloss.NewStyle().Foreground(p.Amber),
-		meterLow:   lipgloss.NewStyle().Foreground(p.Danger),
-		info:       lipgloss.NewStyle().Foreground(p.Dim),
-		mess:       lipgloss.NewStyle().Foreground(p.Danger),
-		sick:       lipgloss.NewStyle().Foreground(p.Danger),
+		art:             lipgloss.NewStyle().Foreground(p.Accent),
+		stageLabel:      lipgloss.NewStyle().Foreground(p.Dim),
+		meterGood:       lipgloss.NewStyle().Foreground(p.Screen),
+		meterFair:       lipgloss.NewStyle().Foreground(p.Amber),
+		meterLow:        lipgloss.NewStyle().Foreground(p.Danger),
+		info:            lipgloss.NewStyle().Foreground(p.Dim),
+		mess:            lipgloss.NewStyle().Foreground(p.Danger),
+		sick:            lipgloss.NewStyle().Foreground(p.Danger),
+		attention:       lipgloss.NewStyle().Foreground(p.Amber),
+		attentionLapsed: lipgloss.NewStyle().Foreground(p.Danger).Bold(true),
 
 		// A selected tab shares the exact "this is the pressable thing"
 		// treatment the chip uses: a constant Accent fill and OnAccent text.

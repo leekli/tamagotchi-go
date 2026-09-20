@@ -35,7 +35,7 @@ The Panel showing the Pet's art and Stage label on the Next Screen, for every St
 _Avoid_: art panel, creature panel
 
 **STATS panel**:
-The Panel showing the Pet's Hunger and Happiness Meters, Mess and Sick (when present), and Age/Weight, beside the PET panel on the Next Screen, for every Stage except Death.
+The Panel showing the Pet's Hunger and Happiness Meters, Mess, Sick and the Attention call (when present), and Age/Weight, beside the PET panel on the Next Screen, for every Stage except Death.
 _Avoid_: info panel, meter panel
 
 **Death panel**:
@@ -179,7 +179,7 @@ The cost of an Empty spell whose Grace window expires without the Stat being ref
 _Avoid_: care miss, strike, penalty
 
 **Attention call**:
-The Pet's signal that a Stat is Empty, in one of two phases: the Grace window still running, or lapsed (the Care mistake counted). Only an Empty Hunger or Happiness calls; a Mess does not, and a Sick Pet does not call at all.
+The Pet's signal that a Stat is Empty, in one of two phases: the Grace window still running, or lapsed (the Care mistake counted). Only an Empty Hunger or Happiness calls; a Mess does not, and a Sick Pet does not call at all. It is shown in the STATS panel as `(!)` and the name of each Empty Stat, "Hungry" (Feed it) or "Sad" (Play with it); once a Stat's Grace window has lapsed its word is capitalised and the glyph doubles to `(!!)`, and it stays until the Stat is refilled, so the phase reads without colour. It returns after a Cure if a Stat is still Empty, and it never sounds the terminal bell.
 _Avoid_: alert, notification
 
 **Sick**:

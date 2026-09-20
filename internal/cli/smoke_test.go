@@ -288,3 +288,58 @@ func TestBinaryShowsTheCauseOfDeathAndRestarts(t *testing.T) {
 		})
 	}
 }
+
+// TestBinaryShowsTheAttentionCallInBothPhases seeds a save for a hatched Pet
+// with Hunger Empty, once with its grace window still running and once with it
+// lapsed, and checks that the real binary's first frame names it in the
+// matching wording, and that a Meal then takes the call away.
+func TestBinaryShowsTheAttentionCallInBothPhases(t *testing.T) {
+	if testing.Short() {
+		t.Skip("smoke test builds and launches the binary")
+	}
+
+	bin := buildBinary(t)
+	started := time.Now()
+	seeds := map[string]struct {
+		spell func(now time.Time) pet.EmptySpell
+		want  string
+	}{
+		"window running": {
+			spell: func(now time.Time) pet.EmptySpell {
+				return pet.EmptySpell{Since: now, GraceEndsAt: now.Add(pet.GraceWindow)}
+			},
+			want: "(!) Hungry",
+		},
+		"window lapsed": {
+			// Empty for 5 minutes: past the 4-minute window, short of the 10 that starve.
+			spell: func(now time.Time) pet.EmptySpell { return pet.EmptySpell{Since: now.Add(-5 * time.Minute)} },
+			want:  "(!!) HUNGRY",
+		},
+	}
+	for name, tt := range seeds {
+		t.Run(name, func(t *testing.T) {
+			p := pet.New(started.Add(-time.Minute)) // a Baby
+			p.LastSeenAt, p.HappinessLastSeenAt, p.LastCleanedAt = started, started, started
+			p.Hunger = 0
+			p.HungerEmpty = tt.spell(started)
+			savePath := filepath.Join(t.TempDir(), "save.json")
+			require.NoError(t, pet.NewFileStore(savePath).Save(p))
+
+			proc := startBinary(t, bin, savePath)
+			waitForOutput(t, proc.out, "Press Enter or click to begin")
+			proc.send(t, "\r")
+			waitForOutput(t, proc.out, tt.want)
+
+			proc.send(t, "f")
+			waitForOutput(t, proc.out, "Meal")
+			proc.send(t, "m")
+			waitForOutput(t, proc.out, "munch munch")
+			proc.quit(t)
+
+			saved, ok, err := pet.NewFileStore(savePath).Load()
+			require.NoError(t, err)
+			require.True(t, ok)
+			assert.Equal(t, 1, saved.Hunger, "the Meal refilled Hunger, which is what took the call away")
+		})
+	}
+}
