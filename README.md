@@ -79,8 +79,8 @@ compressed from the original toy, so a whole life fits in one sitting.
 
 ### A life, from Egg to Death
 
-| Stage | Begins at | Lasts     |
-| ----- | --------- | --------- |
+| Stage | Begins at | Lasts      |
+| ----- | --------- | ---------- |
 | Egg   | 0:00      | 30 seconds |
 | Baby  | 0:30      | 10 minutes |
 | Child | 10:30     | 15 minutes |
@@ -105,13 +105,13 @@ between 2 g and 12 g. At 5 g or more the Pet is Overfed.
 
 ### Care actions
 
-| Action | Key            | Effect                                              |
-| ------ | -------------- | --------------------------------------------------- |
-| Meal   | <kbd>f</kbd> <kbd>m</kbd> | Hunger +1                                |
-| Snack  | <kbd>f</kbd> <kbd>s</kbd> | Happiness +1, Weight +1 g                |
-| Play   | <kbd>p</kbd>   | Happiness +1, Weight −1 g                           |
-| Clean  | <kbd>c</kbd>   | Removes the Mess                                    |
-| Cure   | <kbd>u</kbd>   | Ends Sickness (does nothing for a healthy Pet)      |
+| Action | Key                       | Effect                                         |
+| ------ | ------------------------- | ---------------------------------------------- |
+| Meal   | <kbd>f</kbd> <kbd>m</kbd> | Hunger +1                                      |
+| Snack  | <kbd>f</kbd> <kbd>s</kbd> | Happiness +1, Weight +1 g                      |
+| Play   | <kbd>p</kbd>              | Happiness +1, Weight −1 g                      |
+| Clean  | <kbd>c</kbd>              | Removes the Mess                               |
+| Cure   | <kbd>u</kbd>              | Ends Sickness (does nothing for a healthy Pet) |
 
 Hunger and Happiness never go above 4. One action gives one point, so an Empty
 Stat needs several actions to fill.
@@ -141,12 +141,12 @@ counted; a Cure resumes each window where it left off.
 
 ### Death
 
-| Cause      | When                                                                 |
-| ---------- | -------------------------------------------------------------------- |
-| Old age    | The Adult Stage runs out with no Care mistakes on the tally          |
-| Neglect    | The Adult Stage, shortened by Care mistakes, runs out                |
-| Starvation | Hunger stays Empty for 10 minutes (even while the Pet is Sick)       |
-| Sickness   | The Pet stays Sick for 8 minutes without a Cure                      |
+| Cause      | When                                                           |
+| ---------- | -------------------------------------------------------------- |
+| Old age    | The Adult Stage runs out with no Care mistakes on the tally    |
+| Neglect    | The Adult Stage, shortened by Care mistakes, runs out          |
+| Starvation | Hunger stays Empty for 10 minutes (even while the Pet is Sick) |
+| Sickness   | The Pet stays Sick for 8 minutes without a Cure                |
 
 Whichever comes first is the cause; if two fall at the very same instant the
 order is Starvation, Sickness, then Neglect or Old age. Death is recorded at the
@@ -157,27 +157,27 @@ new Egg.
 
 ### Worked examples
 
-| If you…                                   | What happens                                                                                                                       |
-| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Never touch the Pet                       | 5:00 Mess · 8:30 Happiness Empty · 10:00 Sick · 12:00 Hunger Empty · **18:00 dies of Sickness** (Starvation would only come at 22:00) |
-| Keep it clean but never feed or play      | 12:00 Hunger and Happiness Empty · 16:00 two Care mistakes · **22:00 dies of Starvation**                                          |
-| Look after it perfectly                   | No Care mistakes · **60:30 dies of Old age**                                                                                       |
-| Rack up 8 or more Care mistakes           | The Adult Stage shrinks to its 5-minute minimum · **45:30 at the earliest, dies of Neglect**                                       |
+| If you…                              | What happens                                                                                                                          |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Never touch the Pet                  | 5:00 Mess · 8:30 Happiness Empty · 10:00 Sick · 12:00 Hunger Empty · **18:00 dies of Sickness** (Starvation would only come at 22:00) |
+| Keep it clean but never feed or play | 12:00 Hunger and Happiness Empty · 16:00 two Care mistakes · **22:00 dies of Starvation**                                             |
+| Look after it perfectly              | No Care mistakes · **60:30 dies of Old age**                                                                                          |
+| Rack up 8 or more Care mistakes      | The Adult Stage shrinks to its 5-minute minimum · **45:30 at the earliest, dies of Neglect**                                          |
 
 ## Controls
 
 Everything you can do with a key you can do with the mouse.
 
-| Input                                                                | Action                                                                     |
-| -------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| <kbd>Enter</kbd>, or a click on the begin prompt                     | Begin (Welcome Screen)                                                     |
-| <kbd>←</kbd> <kbd>→</kbd> / <kbd>h</kbd> <kbd>l</kbd>, or a click on a tab | Select a Care action on the Icon bar, or Meal or Snack once Feed's chooser is open (Next Screen, once the Pet has hatched) |
-| <kbd>Enter</kbd>                                                     | Activate the selected Care action or choice                                |
-| <kbd>f</kbd> <kbd>p</kbd> <kbd>c</kbd> <kbd>u</kbd>                  | Feed (opens the chooser), Play, Clean or Cure directly, from any selection |
-| <kbd>m</kbd> <kbd>s</kbd>                                            | Choose Meal or Snack directly, once Feed's chooser is open                 |
-| <kbd>Esc</kbd>                                                       | Close Feed's chooser (Next Screen); quit (Welcome Screen)                  |
-| <kbd>Enter</kbd>, or a click on the prompt                           | Hatch a new Egg, once the Pet has died (Next Screen)                       |
-| <kbd>Ctrl</kbd>+<kbd>C</kbd>                                         | Quit (any Screen); the Pet is saved first                                  |
+| Input                                                                      | Action                                                                               |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| <kbd>Enter</kbd>, or a click on the begin prompt                           | Begin (Welcome Screen)                                                               |
+| <kbd>←</kbd> <kbd>→</kbd> / <kbd>h</kbd> <kbd>l</kbd>, or a click on a tab | Select a Care action, or Meal or Snack in Feed's chooser (Next Screen, once hatched) |
+| <kbd>Enter</kbd>                                                           | Activate the selected Care action or choice                                          |
+| <kbd>f</kbd> <kbd>p</kbd> <kbd>c</kbd> <kbd>u</kbd>                        | Feed (opens the chooser), Play, Clean or Cure directly, from any selection           |
+| <kbd>m</kbd> <kbd>s</kbd>                                                  | Choose Meal or Snack directly, once Feed's chooser is open                           |
+| <kbd>Esc</kbd>                                                             | Close Feed's chooser (Next Screen); quit (Welcome Screen)                            |
+| <kbd>Enter</kbd>, or a click on the prompt                                 | Hatch a new Egg, once the Pet has died (Next Screen)                                 |
+| <kbd>Ctrl</kbd>+<kbd>C</kbd>                                               | Quit (any Screen); the Pet is saved first                                            |
 
 While Feed's chooser is open, the direct <kbd>f</kbd> <kbd>p</kbd> <kbd>c</kbd> <kbd>u</kbd>
 keys do nothing until you choose or cancel.
@@ -292,67 +292,65 @@ name precise click targets.
 ```mermaid
 flowchart TD
 
-subgraph group_entry["Entry Layer"]
+subgraph group_entry["Entry"]
   node_main["CLI Binary<br/>[main.go]"]
   node_cli["CLI Runner<br/>[cli.go]"]
 end
 
-subgraph group_ui["TUI Layer"]
+subgraph group_router["TUI Router"]
   node_app["App Router<br/>[app.go]"]
+end
+
+subgraph group_screens["TUI Screens"]
   node_welcome["Welcome Screen<br/>[welcome.go]"]
   node_next["Next Screen<br/>[next.go]"]
-  node_panel["Panel Renderer<br/>[panel.go]"]
+end
+
+subgraph group_shared["TUI Shared Primitives"]
+  node_panel["Panels<br/>[panel.go]"]
   node_zones["Click Zones<br/>[zone.go]"]
+  node_styles["Palette and Styles<br/>[styles.go]"]
 end
 
 subgraph group_domain["Pet Domain"]
   node_pet["Pet State<br/>[pet.go]"]
-  node_care["Care Actions<br/>[actions.go]"]
-  node_decay["Decay Neglect<br/>[decay.go]"]
+  node_advance["Advance and Decay<br/>[decay.go]"]
+  node_neglect["Empty Spells and Care Mistakes<br/>[neglect.go]"]
+  node_sickness["Sickness and Cure<br/>[sickness.go]"]
   node_death["Death Rules<br/>[death.go]"]
+  node_care["Care Actions<br/>[actions.go]"]
   node_beat["Simulation Beat<br/>[beat.go]"]
 end
 
-subgraph group_support["Timing Assets"]
+subgraph group_storage["Persistence"]
+  node_store[("Save Store<br/>[store.go]")]
+end
+
+subgraph group_support["Frame Clock and Art"]
   node_anim["Animation Clock<br/>[anim.go]"]
   node_art["ASCII Art<br/>[art.go]"]
 end
 
-subgraph group_storage["Persistence"]
-  node_store[("Pet Save Store<br/>[store.go]")]
-end
-
-node_player(("Player"))
-node_terminal(("Terminal"))
-node_clock(("System Clock"))
-
-node_terminal -->|"launches"| node_main
-node_player -->|"begins"| node_welcome
-node_player -->|"cares"| node_next
-node_main -->|"runs"| node_cli
-node_clock -->|"timestamps"| node_cli
-node_cli -->|"loads"| node_store
-node_store -->|"returns state"| node_cli
-node_cli -->|"creates or advances"| node_pet
+node_main --> node_cli
 node_cli -->|"wires and starts"| node_app
-node_app -->|"dispatches"| node_welcome
-node_welcome -->|"requests navigation"| node_app
-node_app -->|"replaces screen"| node_next
-node_next -->|"advances state"| node_pet
-node_next -->|"invokes care"| node_care
-node_next -->|"schedules beats"| node_beat
-node_beat -->|"delivers beats"| node_next
-node_pet -->|"applies decay"| node_decay
-node_pet -->|"evaluates death"| node_death
-node_next -->|"saves on quit"| node_store
-node_welcome -->|"schedules frames"| node_anim
-node_next -->|"schedules frames"| node_anim
-node_welcome -->|"loads artwork"| node_art
-node_next -->|"loads artwork"| node_art
-node_welcome -->|"marks clicks"| node_zones
-node_next -->|"marks clicks"| node_zones
-node_app -->|"scans coordinates"| node_zones
-node_next -->|"renders panels"| node_panel
+node_cli -->|"loads save"| node_store
+node_cli -->|"catches up"| node_advance
+
+node_app -->|"routes messages"| group_screens
+node_welcome -.->|"navigates"| node_app
+
+node_next -->|"advances Pet"| node_advance
+node_next -->|"applies care"| node_care
+node_next <-->|"beats"| node_beat
+node_next -->|"saves"| node_store
+
+node_advance --> node_neglect
+node_advance --> node_sickness
+node_advance --> node_death
+
+node_app -->|"chrome and click scan"| group_shared
+group_screens -->|"draw with"| group_shared
+group_screens -->|"animate and load art"| group_support
 
 click node_main "https://github.com/leekli/tamagotchi-go/blob/main/cmd/tamagotchi-go/main.go"
 click node_cli "https://github.com/leekli/tamagotchi-go/blob/main/internal/cli/cli.go"
@@ -361,27 +359,28 @@ click node_welcome "https://github.com/leekli/tamagotchi-go/blob/main/internal/t
 click node_next "https://github.com/leekli/tamagotchi-go/blob/main/internal/tui/next/next.go"
 click node_panel "https://github.com/leekli/tamagotchi-go/blob/main/internal/tui/panel.go"
 click node_zones "https://github.com/leekli/tamagotchi-go/blob/main/internal/tui/zone.go"
+click node_styles "https://github.com/leekli/tamagotchi-go/blob/main/internal/tui/styles.go"
 click node_pet "https://github.com/leekli/tamagotchi-go/blob/main/internal/pet/pet.go"
-click node_care "https://github.com/leekli/tamagotchi-go/blob/main/internal/pet/actions.go"
-click node_decay "https://github.com/leekli/tamagotchi-go/blob/main/internal/pet/decay.go"
+click node_advance "https://github.com/leekli/tamagotchi-go/blob/main/internal/pet/decay.go"
+click node_neglect "https://github.com/leekli/tamagotchi-go/blob/main/internal/pet/neglect.go"
+click node_sickness "https://github.com/leekli/tamagotchi-go/blob/main/internal/pet/sickness.go"
 click node_death "https://github.com/leekli/tamagotchi-go/blob/main/internal/pet/death.go"
+click node_care "https://github.com/leekli/tamagotchi-go/blob/main/internal/pet/actions.go"
 click node_beat "https://github.com/leekli/tamagotchi-go/blob/main/internal/pet/beat.go"
+click node_store "https://github.com/leekli/tamagotchi-go/blob/main/internal/pet/store.go"
 click node_anim "https://github.com/leekli/tamagotchi-go/blob/main/internal/anim/anim.go"
 click node_art "https://github.com/leekli/tamagotchi-go/blob/main/internal/art/art.go"
-click node_store "https://github.com/leekli/tamagotchi-go/blob/main/internal/pet/store.go"
 
-classDef toneNeutral fill:#f8fafc,stroke:#334155,stroke-width:1.5px,color:#0f172a
 classDef toneBlue fill:#dbeafe,stroke:#2563eb,stroke-width:1.5px,color:#172554
 classDef toneAmber fill:#fef3c7,stroke:#d97706,stroke-width:1.5px,color:#78350f
 classDef toneMint fill:#dcfce7,stroke:#16a34a,stroke-width:1.5px,color:#14532d
 classDef toneRose fill:#ffe4e6,stroke:#e11d48,stroke-width:1.5px,color:#881337
 classDef toneIndigo fill:#e0e7ff,stroke:#4f46e5,stroke-width:1.5px,color:#312e81
-classDef toneTeal fill:#ccfbf1,stroke:#0f766e,stroke-width:1.5px,color:#134e4a
 class node_main,node_cli toneBlue
-class node_app,node_welcome,node_next,node_panel,node_zones toneAmber
-class node_pet,node_care,node_decay,node_death,node_beat toneMint
+class node_app,node_welcome,node_next,node_panel,node_zones,node_styles toneAmber
+class node_pet,node_advance,node_neglect,node_sickness,node_death,node_care,node_beat toneMint
 class node_anim,node_art toneRose
-class node_store,node_player,node_terminal,node_clock toneIndigo
+class node_store toneIndigo
 ```
 
 `internal/pet` is the domain package, and does no I/O. Its `Advance(now)` is the
