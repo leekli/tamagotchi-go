@@ -26,3 +26,18 @@ changed is derived: `Sick(now)` also reports a Pet as Sick from its Mess and its
 last Cure, so the Screen, which reads at its own faster clock, never lags an
 Advance. A Cure on a Pet that is not Sick must not stamp `LastCuredAt`, or
 pressing it would delay the Sickness it is meant to answer.
+
+## Update: Sickness pauses the grace clock by sliding the deadline
+
+Sickness pauses each Empty spell's grace clock, and the two-instant spell is what
+makes that cheap. While the Pet is Sick nothing is counted, and the pending
+deadline is left where it is. A Cure moves every pending deadline later by the
+time its spell spent Sick, measured from the later of the Sickness beginning and
+the spell beginning: a spell that was running keeps the grace time it had left,
+and one that began during the Sickness gets a full window from the Cure. The
+spell's start is never touched, because time spent Empty is not paused and
+starvation will measure from it. A window that had already expired when the
+Sickness began ran its course while the Pet was well and is still counted, and
+one that expires at the very instant it begins counts too. Because a Cure can only
+move deadlines that an `Advance` has already recorded, it, like every Care action,
+must follow an `Advance` to its own instant.

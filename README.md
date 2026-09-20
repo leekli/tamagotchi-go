@@ -9,9 +9,11 @@ A command-line pet game in the style of the original first-generation Tamagotchi
 toy (1996–1997), built in Go with the [Bubble Tea](https://github.com/charmbracelet/bubbletea)
 TUI framework.
 
-<img src="https://cdn-icons-png.flaticon.com/512/9480/9480360.png" width="64" height="64">  
-<img src="https://cdn-icons-png.flaticon.com/512/2532/2532690.png" width="64" height="64">   
-<img src="https://cdn-icons-png.flaticon.com/512/2532/2532579.png" width="64" height="64">   
+<div style="display: flex;">
+  <img src="https://cdn-icons-png.flaticon.com/512/9480/9480360.png" width="64" height="64">
+  <img src="https://cdn-icons-png.flaticon.com/512/2532/2532690.png" width="64" height="64">
+  <img src="https://cdn-icons-png.flaticon.com/512/2532/2532579.png" width="64" height="64">
+</div> 
 
 ```
  ____   ____  _    _  ____   ____   ____   ____   ____  _    _  ____
@@ -54,8 +56,9 @@ TUI framework.
   longer than a short grace window and the Pet racks up a Care mistake (one per
   Stat per Empty spell, on a lifetime tally that isn't shown to you). Refilling
   the Stat in time — a Meal for Hunger, a Snack or Play for Happiness — spares
-  you. Nothing changes on screen and nothing happens to the Pet yet; the tally
-  is groundwork for what neglect will cost.
+  you, and a Sick Pet's grace window is paused until you Cure it. Nothing
+  changes on screen and nothing happens to the Pet yet; the tally is groundwork
+  for what neglect will cost.
 - A screen-routed TUI that clears the terminal on entry and restores it on exit.
 - A hand-authored ASCII wordmark with a one-pass shine sweep, a wandering
   animated Character, and a pulsing begin prompt — all on a deterministic,

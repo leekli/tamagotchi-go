@@ -17,12 +17,23 @@ func (p Pet) Sick(now time.Time) bool {
 // the Sickness it is meant to answer.
 //
 // A Pet cured while its Mess is still there is Sick again SickAfterMess after
-// the Cure, not at once, so the player has time to clean up. Like every Care
-// action, Cure follows an Advance to now.
+// the Cure, not at once, so the player has time to clean up.
+//
+// Sickness paused each Empty spell's grace clock, so Cure resumes it: every
+// pending deadline moves later by the time the spell spent Sick (see
+// EmptySpell.resumedAfterSickness). Like every Care action, Cure follows an
+// Advance to now, so that the spells and mistakes up to now are already
+// recorded before their deadlines move.
 func (p Pet) Cure(now time.Time) Pet {
 	if !p.Sick(now) {
 		return p
 	}
+	sickSince := p.SickSince
+	if sickSince.IsZero() {
+		sickSince = p.sicknessOnset() // Sick as of now, but not yet recorded by an Advance
+	}
+	p.HungerEmpty = p.HungerEmpty.resumedAfterSickness(sickSince, now)
+	p.HappinessEmpty = p.HappinessEmpty.resumedAfterSickness(sickSince, now)
 	p.SickSince = time.Time{}
 	p.LastCuredAt = now
 	return p

@@ -42,14 +42,16 @@ const (
 	AttentionLapsed
 )
 
-// HungerAttention reports Hunger's Attention call as of now.
+// HungerAttention reports Hunger's Attention call as of now. A Sick Pet does not
+// call for attention, so it is AttentionNone while the Pet is Sick.
 func (p Pet) HungerAttention(now time.Time) Attention {
-	return attention(p.Hunger, p.HungerEmpty, now)
+	return attention(p.Hunger, p.HungerEmpty, p.Sick(now), now)
 }
 
-// HappinessAttention reports Happiness's Attention call as of now.
+// HappinessAttention reports Happiness's Attention call as of now, likewise
+// suppressed while the Pet is Sick.
 func (p Pet) HappinessAttention(now time.Time) Attention {
-	return attention(p.Happiness, p.HappinessEmpty, now)
+	return attention(p.Happiness, p.HappinessEmpty, p.Sick(now), now)
 }
 
 // NeedsAttention reports whether either Stat is Empty, in either phase.
@@ -57,9 +59,9 @@ func (p Pet) NeedsAttention(now time.Time) bool {
 	return p.HungerAttention(now) != AttentionNone || p.HappinessAttention(now) != AttentionNone
 }
 
-func attention(stat int, spell EmptySpell, now time.Time) Attention {
+func attention(stat int, spell EmptySpell, sick bool, now time.Time) Attention {
 	switch {
-	case stat > 0:
+	case stat > 0, sick:
 		return AttentionNone
 	case spell.Since.IsZero():
 		// Empty with no recorded start: a save from before spells were recorded.
@@ -90,19 +92,47 @@ func (p Pet) startUnrecordedSpells(now time.Time) Pet {
 // countLapsedWindows counts a Care mistake for each Stat whose grace window has
 // expired by now and not yet been counted.
 func (p Pet) countLapsedWindows(now time.Time) Pet {
-	if windowLapsed(p.HungerEmpty, now) {
+	if windowLapsed(p.HungerEmpty, p.SickSince, now) {
 		p.CareMistakes++
 		p.HungerEmpty.GraceEndsAt = time.Time{}
 	}
-	if windowLapsed(p.HappinessEmpty, now) {
+	if windowLapsed(p.HappinessEmpty, p.SickSince, now) {
 		p.CareMistakes++
 		p.HappinessEmpty.GraceEndsAt = time.Time{}
 	}
 	return p
 }
 
-func windowLapsed(s EmptySpell, now time.Time) bool {
-	return !s.GraceEndsAt.IsZero() && !now.Before(s.GraceEndsAt)
+// windowLapsed reports whether s's grace window has expired by now and should be
+// counted. The grace clock does not run while the Pet is Sick, so a window that
+// would expire after the Sickness began (sickSince, zero when the Pet is well)
+// is left pending, to be resumed by a Cure. One that expired at or before the
+// Sickness began ran its full course while the Pet was well, and still counts.
+func windowLapsed(s EmptySpell, sickSince, now time.Time) bool {
+	if s.GraceEndsAt.IsZero() || now.Before(s.GraceEndsAt) {
+		return false
+	}
+	return sickSince.IsZero() || !s.GraceEndsAt.After(sickSince)
+}
+
+// resumedAfterSickness returns s with its pending grace deadline moved later by
+// the time it spent paused: from the later of the Sickness beginning and the
+// spell beginning, to the Cure. A spell that was running when the Pet fell Sick
+// thereby keeps the grace time it had left; one that began during the Sickness
+// gets a fresh window from the Cure. Only the deadline moves: when the spell
+// began does not, because time Empty is not paused by Sickness. A deadline that
+// is zero (no spell, or its mistake already counted) or that fell at or before
+// the Sickness began is left alone.
+func (s EmptySpell) resumedAfterSickness(sickSince, curedAt time.Time) EmptySpell {
+	if !s.GraceEndsAt.After(sickSince) {
+		return s
+	}
+	pausedFrom := sickSince
+	if s.Since.After(pausedFrom) {
+		pausedFrom = s.Since
+	}
+	s.GraceEndsAt = s.GraceEndsAt.Add(curedAt.Sub(pausedFrom))
+	return s
 }
 
 // endRefilledSpells ends the Empty spell of any Stat a Care action has lifted

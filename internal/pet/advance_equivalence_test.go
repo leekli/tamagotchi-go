@@ -174,6 +174,20 @@ func TestAdvanceScriptedTimelinesMatchOneLongCatchUp(t *testing.T) {
 				namedAction("cure", 22*time.Minute), namedAction("cure", 23*time.Minute),
 			},
 		},
+		"Sickness pausing a grace clock, a Cure resuming it, and Sickness pausing it again": {
+			// The timeline from sickness_grace_test.go: Hunger empties at 3:00, the Pet
+			// falls Sick at 6:00, is Cured at 8:00 and Sick again at 13:00, when it is
+			// Cured again. Probes fall inside each phase.
+			prepare: func(p pet.Pet) pet.Pet {
+				p.LastCleanedAt = born.Add(-4 * time.Minute)
+				p.Hunger = 1
+				return p
+			},
+			probes: []time.Duration{6*time.Minute + 15*time.Second, 8*time.Minute + 30*time.Second, 10 * time.Minute, 13*time.Minute + 30*time.Second, 20 * time.Minute},
+			actions: []careAction{
+				namedAction("cure", 8*time.Minute), namedAction("cure", 14*time.Minute),
+			},
+		},
 		"a long absence": {
 			prepare: unchanged, probes: []time.Duration{20 * time.Minute, 6 * time.Hour},
 		},
@@ -297,7 +311,7 @@ func TestAdvanceCareMistakesAreExactUnderRandomSchedules(t *testing.T) {
 	t.Parallel()
 
 	born := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	var withMistakes, mistakes, sickOrCured atomic.Int64
+	var withMistakes, mistakes, sickOrCured, pausedSpells atomic.Int64
 
 	t.Run("seeds", func(t *testing.T) {
 		for seed := uint64(1); seed <= 300; seed++ {
@@ -316,6 +330,12 @@ func TestAdvanceCareMistakesAreExactUnderRandomSchedules(t *testing.T) {
 				if !final.SickSince.IsZero() || !final.LastCuredAt.IsZero() {
 					sickOrCured.Add(1) // the run fell Sick, and possibly was Cured
 				}
+				for _, snap := range oneLong {
+					if !snap.SickSince.IsZero() && (!snap.HungerEmpty.GraceEndsAt.IsZero() || !snap.HappinessEmpty.GraceEndsAt.IsZero()) {
+						pausedSpells.Add(1) // a probe caught a Sick Pet with a grace clock paused
+						break
+					}
+				}
 
 				for range 2 {
 					beat := beatSizes[r.IntN(len(beatSizes))]
@@ -327,12 +347,13 @@ func TestAdvanceCareMistakesAreExactUnderRandomSchedules(t *testing.T) {
 	})
 
 	// The parallel seeds above have all finished by here.
-	t.Logf("%d of 300 schedules earned a Care mistake, %d in all; %d fell Sick or were Cured",
-		withMistakes.Load(), mistakes.Load(), sickOrCured.Load())
+	t.Logf("%d of 300 schedules earned a Care mistake, %d in all; %d fell Sick or were Cured; %d were caught with a grace clock paused",
+		withMistakes.Load(), mistakes.Load(), sickOrCured.Load(), pausedSpells.Load())
 	assert.GreaterOrEqual(t, withMistakes.Load(), int64(150),
 		"at least half of the schedules should earn a Care mistake, or the property is barely exercised")
 	assert.GreaterOrEqual(t, mistakes.Load(), int64(300), "and between them a good number of mistakes")
 	assert.GreaterOrEqual(t, sickOrCured.Load(), int64(150), "and enough should fall Sick, or be Cured, to exercise Sickness")
+	assert.GreaterOrEqual(t, pausedSpells.Load(), int64(30), "and some should be caught mid-pause, or the pausing is barely exercised")
 }
 
 // TestHappinessAccelerationDividesTheDecayInterval guards the arithmetic the
