@@ -159,6 +159,26 @@ what brings Weight back down and resolves it. Deliberately named for the
 cause (too much Snack), not the Pet's body.
 _Avoid_: fat, chubby, overweight
 
+**Empty**:
+A Hunger or Happiness Stat at 0.
+_Avoid_: depleted, drained
+
+**Empty spell**:
+One unbroken run of a Stat being Empty. It begins the instant Decay takes the Stat to 0 and ends when a Care action lifts it above 0; a later run is a new spell.
+_Avoid_: episode, neglect episode
+
+**Grace window**:
+The fixed interval a Stat may stay Empty, counted from the start of its Empty spell, before that spell costs a Care mistake.
+_Avoid_: timeout, deadline
+
+**Care mistake**:
+The cost of an Empty spell whose Grace window expires without the Stat being refilled: one per spell, per Stat, however long the spell lasts. Mistakes are counted on a single tally kept from birth.
+_Avoid_: care miss, strike, penalty
+
+**Attention call**:
+The Pet's signal that a Stat is Empty, in one of two phases: the Grace window still running, or lapsed (the Care mistake counted). Only an Empty Hunger or Happiness calls; a Mess does not.
+_Avoid_: alert, notification
+
 **Care action**:
 A player-triggered command on the Next Screen that changes the Pet's Stats:
 Feed, Play, or Clean.

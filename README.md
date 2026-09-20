@@ -41,6 +41,12 @@ TUI framework.
   off Weight gained from Snacking; let it climb too high and the Pet becomes
   Overfed, which speeds up Happiness decay the same way an uncleaned Mess
   does.
+- Neglect is tracked behind the scenes: leave Hunger or Happiness at 0 for
+  longer than a short grace window and the Pet racks up a Care mistake (one per
+  Stat per Empty spell, on a lifetime tally that isn't shown to you). Refilling
+  the Stat in time — a Meal for Hunger, a Snack or Play for Happiness — spares
+  you. Nothing changes on screen and nothing happens to the Pet yet; the tally
+  is groundwork for what neglect will cost.
 - A screen-routed TUI that clears the terminal on entry and restores it on exit.
 - A hand-authored ASCII wordmark with a one-pass shine sweep, a wandering
   animated Character, and a pulsing begin prompt — all on a deterministic,

@@ -60,9 +60,19 @@ type saveFile struct {
 	// made exact; its zero value reads as "no partial progress yet", so no
 	// schema_version bump is needed for it either.
 	HappinessProgress time.Duration `json:"happiness_progress_ns,omitzero"`
-	Hunger            int           `json:"hunger"`
-	Happiness         int           `json:"happiness"`
-	Weight            int           `json:"weight"`
+	// The Care mistake tally and each Stat's Empty spell are likewise absent from
+	// any save file written before neglect was tracked. A missing tally reads as
+	// none owed, and a Stat at 0 with no recorded spell gets a fresh grace window
+	// from the first Advance (see Pet.startUnrecordedSpells), so an upgrade never
+	// counts time from before it. No schema_version bump is needed.
+	CareMistakes         int       `json:"care_mistakes,omitzero"`
+	HungerEmptySince     time.Time `json:"hunger_empty_since,omitzero"`
+	HungerGraceEndsAt    time.Time `json:"hunger_grace_ends_at,omitzero"`
+	HappinessEmptySince  time.Time `json:"happiness_empty_since,omitzero"`
+	HappinessGraceEndsAt time.Time `json:"happiness_grace_ends_at,omitzero"`
+	Hunger               int       `json:"hunger"`
+	Happiness            int       `json:"happiness"`
+	Weight               int       `json:"weight"`
 }
 
 // Load implements Store. A missing file is the normal first-run case, not an
@@ -91,6 +101,9 @@ func (f FileStore) Load() (Pet, bool, error) {
 		LastSeenAt:          sf.LastSeenAt,
 		HappinessLastSeenAt: sf.HappinessLastSeenAt,
 		HappinessProgress:   sf.HappinessProgress,
+		CareMistakes:        sf.CareMistakes,
+		HungerEmpty:         EmptySpell{Since: sf.HungerEmptySince, GraceEndsAt: sf.HungerGraceEndsAt},
+		HappinessEmpty:      EmptySpell{Since: sf.HappinessEmptySince, GraceEndsAt: sf.HappinessGraceEndsAt},
 		LastCleanedAt:       sf.LastCleanedAt,
 		Hunger:              sf.Hunger,
 		Happiness:           sf.Happiness,
@@ -109,15 +122,20 @@ func (f FileStore) Save(p Pet) error {
 	}
 
 	b, err := json.Marshal(saveFile{
-		SchemaVersion:       schemaVersion,
-		CreatedAt:           p.CreatedAt,
-		LastSeenAt:          p.LastSeenAt,
-		HappinessLastSeenAt: p.HappinessLastSeenAt,
-		HappinessProgress:   p.HappinessProgress,
-		LastCleanedAt:       p.LastCleanedAt,
-		Hunger:              p.Hunger,
-		Happiness:           p.Happiness,
-		Weight:              p.Weight,
+		SchemaVersion:        schemaVersion,
+		CreatedAt:            p.CreatedAt,
+		LastSeenAt:           p.LastSeenAt,
+		HappinessLastSeenAt:  p.HappinessLastSeenAt,
+		HappinessProgress:    p.HappinessProgress,
+		CareMistakes:         p.CareMistakes,
+		HungerEmptySince:     p.HungerEmpty.Since,
+		HungerGraceEndsAt:    p.HungerEmpty.GraceEndsAt,
+		HappinessEmptySince:  p.HappinessEmpty.Since,
+		HappinessGraceEndsAt: p.HappinessEmpty.GraceEndsAt,
+		LastCleanedAt:        p.LastCleanedAt,
+		Hunger:               p.Hunger,
+		Happiness:            p.Happiness,
+		Weight:               p.Weight,
 	})
 	if err != nil {
 		return fmt.Errorf("pet: encoding save file: %w", err)

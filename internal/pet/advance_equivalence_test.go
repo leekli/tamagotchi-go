@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"slices"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -200,6 +201,56 @@ func TestAdvanceBeatsMatchOneLongCatchUpAtEveryBeat(t *testing.T) {
 	}
 }
 
+// scenario is one randomly generated Pet, Care schedule and set of probe
+// instants. lowStats starts Hunger and Happiness anywhere from 1 to full (so
+// Empty spells begin and lapse within the run), rather than at full or one
+// short of it; horizonSpan bounds how long the run lasts, above a 5-minute floor.
+type scenario struct {
+	start   pet.Pet
+	actions []careAction
+	probes  []time.Duration
+}
+
+func newScenario(seed uint64, born time.Time, lowStats bool, horizonSpan time.Duration) scenario {
+	// A fixed-seed PRNG, so a failing schedule reproduces exactly.
+	r := rand.New(rand.NewPCG(seed, seed^0x9e3779b97f4a7c15))
+
+	horizon := 5*time.Minute + time.Duration(r.Int64N(int64(horizonSpan)))
+	actions := make([]careAction, r.IntN(13))
+	for i := range actions {
+		kind := careKinds[r.IntN(len(careKinds))]
+		actions[i] = careAction{
+			at:    time.Duration(r.Int64N(int64(horizon))),
+			name:  kind.name,
+			apply: kind.apply,
+		}
+	}
+	slices.SortStableFunc(actions, func(a, b careAction) int { return cmp.Compare(a.at, b.at) })
+
+	probes := make([]time.Duration, 0, 4)
+	for range 3 {
+		probes = append(probes, time.Duration(r.Int64N(int64(horizon))))
+	}
+	probes = append(probes, horizon)
+
+	start := pet.New(born)
+	if lowStats {
+		start.Hunger = 1 + r.IntN(pet.MaxStat)
+		start.Happiness = 1 + r.IntN(pet.MaxStat)
+	} else {
+		start.Hunger = pet.MaxStat - r.IntN(2)
+		start.Happiness = pet.MaxStat - r.IntN(2)
+	}
+	start.Weight = pet.BaseWeight + r.IntN(pet.MaxWeight-pet.BaseWeight+1)
+	// Last cleaned within the previous 4 minutes, so Mess usually appears
+	// partway through the run rather than before or long after it.
+	start.LastCleanedAt = born.Add(-time.Duration(r.Int64N(int64(pet.MessInterval - time.Minute))))
+	start.LastSeenAt = born.Add(-time.Duration(r.Int64N(int64(pet.HungerDecayInterval))))
+	start.HappinessProgress = time.Duration(r.Int64N(int64(pet.HappinessDecayInterval)))
+
+	return scenario{start: start, actions: actions, probes: probes}
+}
+
 // TestAdvanceIsExactUnderRandomCareSchedules generalises the scripted cases
 // over many seeded random Pets and Care schedules. The seeds are fixed, so a
 // failure reproduces exactly; the failure message names the schedule.
@@ -212,46 +263,62 @@ func TestAdvanceIsExactUnderRandomCareSchedules(t *testing.T) {
 		t.Run(fmt.Sprintf("seed %d", seed), func(t *testing.T) {
 			t.Parallel()
 
-			// A fixed-seed PRNG, so a failing schedule reproduces exactly.
-			r := rand.New(rand.NewPCG(seed, seed^0x9e3779b97f4a7c15))
+			sc := newScenario(seed, born, false, 25*time.Minute)
+			r := rand.New(rand.NewPCG(seed, seed))
+			horizon := sc.probes[len(sc.probes)-1]
 
-			horizon := 5*time.Minute + time.Duration(r.Int64N(int64(25*time.Minute)))
-			actions := make([]careAction, r.IntN(13))
-			for i := range actions {
-				kind := careKinds[r.IntN(len(careKinds))]
-				actions[i] = careAction{
-					at:    time.Duration(r.Int64N(int64(horizon))),
-					name:  kind.name,
-					apply: kind.apply,
-				}
-			}
-			slices.SortStableFunc(actions, func(a, b careAction) int { return cmp.Compare(a.at, b.at) })
-
-			probes := make([]time.Duration, 0, 4)
-			for range 3 {
-				probes = append(probes, time.Duration(r.Int64N(int64(horizon))))
-			}
-			probes = append(probes, horizon)
-
-			start := pet.New(born)
-			start.Hunger = pet.MaxStat - r.IntN(2)
-			start.Happiness = pet.MaxStat - r.IntN(2)
-			start.Weight = pet.BaseWeight + r.IntN(pet.MaxWeight-pet.BaseWeight+1)
-			// Last cleaned within the previous 4 minutes, so Mess usually appears
-			// partway through the run rather than before or long after it.
-			start.LastCleanedAt = born.Add(-time.Duration(r.Int64N(int64(pet.MessInterval - time.Minute))))
-			start.LastSeenAt = born.Add(-time.Duration(r.Int64N(int64(pet.HungerDecayInterval))))
-			start.HappinessProgress = time.Duration(r.Int64N(int64(pet.HappinessDecayInterval)))
-
-			oneLong := simulate(start, born, actions, probes, 0)
+			oneLong := simulate(sc.start, born, sc.actions, sc.probes, 0)
 
 			for range 2 {
 				beat := beatSizes[r.IntN(len(beatSizes))]
-				assert.Equal(t, oneLong, simulate(start, born, actions, probes, beat),
-					"beat %v, schedule %s, probes %v", beat, describe(actions), probes)
+				assert.Equal(t, oneLong, simulate(sc.start, born, sc.actions, sc.probes, beat),
+					"beat %v, schedule %s, probes %v, horizon %v", beat, describe(sc.actions), sc.probes, horizon)
 			}
 		})
 	}
+}
+
+// TestAdvanceCareMistakesAreExactUnderRandomSchedules is the same property for
+// the Care mistake tally and Empty spells, with Stats that start low and runs
+// long enough for spells to begin, lapse, be cut short by Care actions and
+// begin again. A whole-Pet comparison covers the tally, both spells and the
+// Attention state at once. The run also counts the mistakes it saw, so the test
+// cannot pass vacuously on schedules that never earn one.
+func TestAdvanceCareMistakesAreExactUnderRandomSchedules(t *testing.T) {
+	t.Parallel()
+
+	born := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	var withMistakes, mistakes atomic.Int64
+
+	t.Run("seeds", func(t *testing.T) {
+		for seed := uint64(1); seed <= 300; seed++ {
+			t.Run(fmt.Sprintf("seed %d", seed), func(t *testing.T) {
+				t.Parallel()
+
+				sc := newScenario(seed, born, true, 45*time.Minute)
+				r := rand.New(rand.NewPCG(seed, seed+1))
+
+				oneLong := simulate(sc.start, born, sc.actions, sc.probes, 0)
+				final := oneLong[len(oneLong)-1]
+				if final.CareMistakes > 0 {
+					withMistakes.Add(1)
+					mistakes.Add(int64(final.CareMistakes))
+				}
+
+				for range 2 {
+					beat := beatSizes[r.IntN(len(beatSizes))]
+					assert.Equal(t, oneLong, simulate(sc.start, born, sc.actions, sc.probes, beat),
+						"beat %v, schedule %s, probes %v", beat, describe(sc.actions), sc.probes)
+				}
+			})
+		}
+	})
+
+	// The parallel seeds above have all finished by here.
+	t.Logf("%d of 300 schedules earned a Care mistake, %d in all", withMistakes.Load(), mistakes.Load())
+	assert.GreaterOrEqual(t, withMistakes.Load(), int64(150),
+		"at least half of the schedules should earn a Care mistake, or the property is barely exercised")
+	assert.GreaterOrEqual(t, mistakes.Load(), int64(300), "and between them a good number of mistakes")
 }
 
 // TestHappinessAccelerationDividesTheDecayInterval guards the arithmetic the
