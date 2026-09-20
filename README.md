@@ -34,13 +34,18 @@ TUI framework.
   is running. State persists between runs (`internal/pet`). Once it has
   died, hatching a brand new Egg is one keypress or click away.
 - A full Care loop once the Pet has hatched: Feed it a Meal or a Snack, Play
-  with it, or Clean up a Mess it's left uncleaned for too long — each
+  with it, Clean up a Mess it's left uncleaned for too long, or Cure it — each
   reachable by keyboard or mouse, with immediate feedback in the stat meters,
   and unaffected by growing from Baby all the way to Adult (once the Pet has
   died, there's nothing left to Feed, Play with, or Clean). Play also works
   off Weight gained from Snacking; let it climb too high and the Pet becomes
   Overfed, which speeds up Happiness decay the same way an uncleaned Mess
   does.
+- Neglect can make the Pet Sick: leave a Mess long enough and a `[+] Sick`
+  indicator appears in its STATS panel. Cleaning up does not cure it — only the
+  Cure action does (the fourth Icon bar tab, or <kbd>u</kbd>), and a Pet Cured
+  while its Mess is still there falls Sick again a while later. A Sick Pet can
+  still be fed and played with, and nothing worse happens to it yet.
 - Neglect is tracked behind the scenes: leave Hunger or Happiness at 0 for
   longer than a short grace window and the Pet racks up a Care mistake (one per
   Stat per Empty spell, on a lifetime tally that isn't shown to you). Refilling
@@ -65,7 +70,7 @@ TUI framework.
 | <kbd>↑</kbd> <kbd>↓</kbd> <kbd>PgUp</kbd> <kbd>PgDn</kbd> <kbd>Home</kbd> <kbd>End</kbd> / wheel | Scroll (on scrollable Screens)                                                         |
 | <kbd>←</kbd> <kbd>→</kbd> / <kbd>h</kbd> <kbd>l</kbd>, or a click on an icon                     | Select a Care action or Feed's Meal/Snack choice (Next Screen, once the Pet has hatched) |
 | <kbd>Enter</kbd>                                                                                 | Activate the selected icon or choice (Next Screen)                                     |
-| <kbd>f</kbd> <kbd>p</kbd> <kbd>c</kbd>                                                           | Feed, Play, or Clean directly, from any selection (Next Screen)                        |
+| <kbd>f</kbd> <kbd>p</kbd> <kbd>c</kbd> <kbd>u</kbd>                                              | Feed, Play, Clean, or Cure directly, from any selection (Next Screen)                  |
 | <kbd>m</kbd> <kbd>s</kbd>                                                                        | Choose Meal or Snack directly, once Feed's chooser is open (Next Screen)               |
 | <kbd>Esc</kbd>                                                                                   | Cancel Feed's Meal/Snack chooser (Next Screen); quit (Welcome Screen)                  |
 | <kbd>Ctrl</kbd>+<kbd>C</kbd>                                                                     | Quit (any Screen)                                                                      |

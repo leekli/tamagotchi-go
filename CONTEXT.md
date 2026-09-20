@@ -35,7 +35,7 @@ The Panel showing the Pet's art and Stage label on the Next Screen, for every St
 _Avoid_: art panel, creature panel
 
 **STATS panel**:
-The Panel showing the Pet's Hunger and Happiness Meters, Mess (when present), and Age/Weight, beside the PET panel on the Next Screen, for every Stage except Death.
+The Panel showing the Pet's Hunger and Happiness Meters, Mess and Sick (when present), and Age/Weight, beside the PET panel on the Next Screen, for every Stage except Death.
 _Avoid_: info panel, meter panel
 
 **Death panel**:
@@ -144,8 +144,9 @@ _Avoid_: save slot, profile (there is only ever one Pet, one save)
 
 **Mess**:
 The uncleaned state the Pet is left in once enough time has passed since it
-was last cleaned. While present it depresses Happiness Decay further; the
-Clean Care action removes it. Deliberately not called "poop" — keep the term
+was last cleaned. While present it depresses Happiness Decay further, and left
+long enough it makes the Pet Sick; the Clean Care action removes it.
+Deliberately not called "poop" — keep the term
 politely abstract in code, comments, and UI copy; the small pile glyph shown
 on screen can still read as one.
 _Avoid_: poop
@@ -179,9 +180,17 @@ _Avoid_: care miss, strike, penalty
 The Pet's signal that a Stat is Empty, in one of two phases: the Grace window still running, or lapsed (the Care mistake counted). Only an Empty Hunger or Happiness calls; a Mess does not.
 _Avoid_: alert, notification
 
+**Sick**:
+The state the Pet falls into once its Mess has gone uncleaned for a further fixed interval after it appeared. Cleaning removes the Mess but does not end it: only Cure does, and a Pet Cured while its Mess is still there falls Sick again a full interval later. A Sick Pet can still be fed and played with.
+_Avoid_: ill, illness
+
+**Cure**:
+The Care action that ends a Sick Pet's Sickness, in a single dose. On a Pet that is not Sick it does nothing.
+_Avoid_: medicine, treat, heal
+
 **Care action**:
-A player-triggered command on the Next Screen that changes the Pet's Stats:
-Feed, Play, or Clean.
+A player-triggered command on the Next Screen that changes the Pet's state:
+Feed, Play, Clean, or Cure.
 _Avoid_: command, verb
 
 **Icon bar**:

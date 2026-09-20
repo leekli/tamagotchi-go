@@ -64,6 +64,7 @@ type styles struct {
 	meterLow   lipgloss.Style // Meter grading: 0-1
 	info       lipgloss.Style // Age and Weight
 	mess       lipgloss.Style // the Mess indicator glyph
+	sick       lipgloss.Style // the Sick indicator
 
 	tabBorder   lipgloss.AdaptiveColor // every tab's border, selected or not
 	tabNormal   lipgloss.Style         // an unselected tab's label
@@ -91,6 +92,7 @@ func newStyles(p tui.Palette) styles {
 		meterLow:   lipgloss.NewStyle().Foreground(p.Danger),
 		info:       lipgloss.NewStyle().Foreground(p.Dim),
 		mess:       lipgloss.NewStyle().Foreground(p.Danger),
+		sick:       lipgloss.NewStyle().Foreground(p.Danger),
 
 		// A selected tab shares the exact "this is the pressable thing"
 		// treatment the chip uses: a constant Accent fill and OnAccent text.

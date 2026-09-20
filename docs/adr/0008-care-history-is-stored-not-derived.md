@@ -13,3 +13,16 @@ A spell holds two instants, not one flag plus a start. The start is kept untouch
 
 - The new state is added to the Save file as optional fields with load defaults and no `schema_version` bump. A save with a Stat already at 0 but no recorded spell gets a fresh grace window from its first `Advance`, so upgrading never counts time from before it.
 - `Stage` will stop being purely derivable once an early Death is recorded; that change amends this ADR.
+
+## Update: Sickness is stored for the same reason
+
+Sickness follows the same reasoning. It is caused by a Mess left uncleaned, but
+it outlasts that cause: cleaning up removes the Mess and the Pet is still Sick
+until Cured. So `SickSince` is stored, and `Advance` records it at the exact
+instant the Pet fell Sick. A Cure stamps `LastCuredAt`, which moves the start of
+the sickness clock, so a Pet Cured while its Mess is still there is Sick again a
+full interval later rather than at once. Only what the Pet would be if nothing
+changed is derived: `Sick(now)` also reports a Pet as Sick from its Mess and its
+last Cure, so the Screen, which reads at its own faster clock, never lags an
+Advance. A Cure on a Pet that is not Sick must not stamp `LastCuredAt`, or
+pressing it would delay the Sickness it is meant to answer.

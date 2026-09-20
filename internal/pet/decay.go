@@ -59,6 +59,9 @@ const maxHappinessAccrual = time.Duration(math.MaxInt64 / 2)
 // instant the spell's grace window expires, however many Beats or how long a
 // catch-up that falls inside. A Stat already at 0 with no recorded spell (a
 // save from before spells existed) gets a fresh window starting at now.
+//
+// It likewise records the exact instant the Pet fell Sick, if it did in this
+// window (see Pet.Sick).
 func (p Pet) Advance(now time.Time) Pet {
 	if now.Before(p.LastSeenAt) || now.Before(p.HappinessLastSeenAt) {
 		// The clock went backwards (e.g. a corrected system clock). Ignore
@@ -69,6 +72,7 @@ func (p Pet) Advance(now time.Time) Pet {
 	p = p.startUnrecordedSpells(now)
 	p = p.decayHunger(now)
 	p = p.decayHappiness(now)
+	p = p.beginSickness(now)
 	return p.countLapsedWindows(now)
 }
 

@@ -254,6 +254,73 @@ func TestPlayAndCleanKeyboardAndMouseReachTheSameState(t *testing.T) {
 	assert.False(t, byMouse.HasMess(time.Now()))
 }
 
+// runCure drives the Welcome Screen to the Next Screen with a hatched Pet that
+// is Sick from the first frame, then Cures it either by hotkey or by clicking the
+// Cure tab's zone, and returns the resulting Pet. The Pet is one kept up to date
+// as of the moment it is Sick, so the Screen starts there (see
+// runFullCareLoop for why a Pet merely fast-forwarded by a tick would lag).
+func runCure(t *testing.T, useMouse bool) (cured pet.Pet, sickAt time.Time) {
+	t.Helper()
+
+	born := time.Now()
+	sickAt = born.Add(pet.EggDuration + time.Second)
+	initial := pet.New(born)
+	initial.LastSeenAt, initial.HappinessLastSeenAt = sickAt, sickAt
+	initial.LastCleanedAt = sickAt.Add(-(pet.MessInterval + pet.SickAfterMess)) // Sick exactly from sickAt
+
+	app := newTestAppWithPet(t, initial)
+	tm := teatest.NewTestModel(t, app, teatest.WithInitialTermSize(100, 30))
+
+	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
+		return bytes.Contains(b, []byte("Press Enter or click to begin"))
+	}, teatest.WithDuration(3*time.Second))
+	tm.Send(tea.KeyMsg{Type: tea.KeyEnter})
+
+	// One wait for the Sick indicator and the Cure tab together: they are on the
+	// first frame, and teatest.WaitFor consumes the output it reads.
+	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
+		return bytes.Contains(b, []byte("Sick")) && bytes.Contains(b, []byte("Cure"))
+	}, teatest.WithDuration(3*time.Second))
+
+	if useMouse {
+		z := waitForZone(t, next.CureZoneID)
+		tm.Send(tea.MouseMsg{
+			Action: tea.MouseActionPress, Button: tea.MouseButtonLeft,
+			X: (z.StartX + z.EndX) / 2, Y: z.StartY,
+		})
+	} else {
+		tm.Send(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'u'}})
+	}
+	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
+		return bytes.Contains(b, []byte("feels better"))
+	}, teatest.WithDuration(3*time.Second))
+
+	tm.Send(tea.KeyMsg{Type: tea.KeyCtrlC})
+	tm.WaitFinished(t, teatest.WithFinalTimeout(3*time.Second))
+
+	final, ok := tm.FinalModel(t).(*tui.App)
+	require.True(t, ok)
+	screen, ok := final.Current().(*next.Screen)
+	require.True(t, ok)
+	return screen.Pet(), sickAt
+}
+
+// TestCureKeyboardAndMouseReachTheSameState proves the keyboard and mouse paths
+// to Cure are equivalent, as for every other Care action.
+//
+// Deliberately not t.Parallel(): its mouse-driven half calls waitForZone, which
+// reads bubblezone's process-wide DefaultManager — see
+// TestPlayAndCleanKeyboardAndMouseReachTheSameState.
+func TestCureKeyboardAndMouseReachTheSameState(t *testing.T) {
+	byKeyboard, sickAt := runCure(t, false)
+	byMouse, _ := runCure(t, true)
+
+	assert.False(t, byKeyboard.Sick(sickAt), "the hotkey should Cure a Sick Pet")
+	assert.False(t, byMouse.Sick(sickAt), "so should a click on the Cure tab")
+	assert.False(t, byKeyboard.LastCuredAt.IsZero())
+	assert.False(t, byMouse.LastCuredAt.IsZero())
+}
+
 // runFeedSnack drives the Welcome Screen to the Next Screen, fast-forwards
 // past EggDuration the same way runPlayThenClean does, then selects Feed and
 // chooses Snack either by hotkey or by clicking the icon-bar and chooser

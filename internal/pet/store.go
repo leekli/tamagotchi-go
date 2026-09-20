@@ -70,9 +70,14 @@ type saveFile struct {
 	HungerGraceEndsAt    time.Time `json:"hunger_grace_ends_at,omitzero"`
 	HappinessEmptySince  time.Time `json:"happiness_empty_since,omitzero"`
 	HappinessGraceEndsAt time.Time `json:"happiness_grace_ends_at,omitzero"`
-	Hunger               int       `json:"hunger"`
-	Happiness            int       `json:"happiness"`
-	Weight               int       `json:"weight"`
+	// SickSince and LastCuredAt are likewise absent from any save file written
+	// before Sickness existed; their zero values read as "never Sick, never
+	// Cured", so no schema_version bump is needed.
+	SickSince   time.Time `json:"sick_since,omitzero"`
+	LastCuredAt time.Time `json:"last_cured_at,omitzero"`
+	Hunger      int       `json:"hunger"`
+	Happiness   int       `json:"happiness"`
+	Weight      int       `json:"weight"`
 }
 
 // Load implements Store. A missing file is the normal first-run case, not an
@@ -104,6 +109,8 @@ func (f FileStore) Load() (Pet, bool, error) {
 		CareMistakes:        sf.CareMistakes,
 		HungerEmpty:         EmptySpell{Since: sf.HungerEmptySince, GraceEndsAt: sf.HungerGraceEndsAt},
 		HappinessEmpty:      EmptySpell{Since: sf.HappinessEmptySince, GraceEndsAt: sf.HappinessGraceEndsAt},
+		SickSince:           sf.SickSince,
+		LastCuredAt:         sf.LastCuredAt,
 		LastCleanedAt:       sf.LastCleanedAt,
 		Hunger:              sf.Hunger,
 		Happiness:           sf.Happiness,
@@ -132,6 +139,8 @@ func (f FileStore) Save(p Pet) error {
 		HungerGraceEndsAt:    p.HungerEmpty.GraceEndsAt,
 		HappinessEmptySince:  p.HappinessEmpty.Since,
 		HappinessGraceEndsAt: p.HappinessEmpty.GraceEndsAt,
+		SickSince:            p.SickSince,
+		LastCuredAt:          p.LastCuredAt,
 		LastCleanedAt:        p.LastCleanedAt,
 		Hunger:               p.Hunger,
 		Happiness:            p.Happiness,

@@ -1038,15 +1038,20 @@ func TestIconSelectionCyclesAndWraps(t *testing.T) {
 
 	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRight})
 	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRight})
-	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRight}) // wraps back to the first icon
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRight}) // Feed -> Play -> Clean -> Cure
 	ns, ok := s.(*next.Screen)
+	require.True(t, ok)
+	assert.Equal(t, 3, ns.Selected(), "the fourth icon is Cure")
+
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRight}) // wraps back to the first icon
+	ns, ok = s.(*next.Screen)
 	require.True(t, ok)
 	assert.Equal(t, 0, ns.Selected())
 
 	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyLeft}) // wraps to the last icon
 	ns, ok = s.(*next.Screen)
 	require.True(t, ok)
-	assert.Equal(t, 2, ns.Selected())
+	assert.Equal(t, 3, ns.Selected())
 }
 
 func TestEnterActivatesTheSelectedIcon(t *testing.T) {
