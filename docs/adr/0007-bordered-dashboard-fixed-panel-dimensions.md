@@ -49,7 +49,9 @@ each state, Egg included, occupies the same envelope.
 
 ## Update: the Attention call fills its reserved row
 
-The STATS row reserved for the Attention call now carries it: `(!) Hungry`,
+Every row reserved above is now in use: the Sick indicator, the cause of Death
+and the Care mistake tally arrived with their features, and the Attention call is
+the last. The STATS row reserved for it now carries it: `(!) Hungry`,
 `(!) Sad` or both, and `(!!) HUNGRY & SAD` once the Grace windows have lapsed. The
 longest form is 17 columns, inside the panel's 19-column content width, so it needs
 no wrapping and shifts nothing; a unit test pins that every combination fits. The

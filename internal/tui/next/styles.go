@@ -11,9 +11,9 @@ import (
 // per docs/adr/0007: petPanel is sized to Adult's art (the widest of any
 // Stage, 14 columns); statsPanel to the Hunger/Happiness Meter row (19
 // characters, e.g. "Happiness  ▓▓▓▓ 4/4"). Both are 12 rows tall: STATS has 8
-// content rows, of which today's content uses 6 and the rest are reserved
-// blank for the Sick indicator and the Attention call. panelGap is the fixed
-// spacing between them when shown side by side.
+// content rows, one each for Mess, the Sick indicator and the Attention call
+// (blank when absent), a spacer, the two Meters, a spacer and the Age/Weight
+// line. panelGap is the fixed spacing between them when shown side by side.
 const (
 	petPanelWidth  = 18
 	petPanelHeight = 12
@@ -27,8 +27,8 @@ const (
 	// docs/adr/0007: driven by the Restart prompt's 39-character text, and
 	// as tall as the hatched composite (petPanelHeight + gap + Icon bar area),
 	// rather than leaving a discrepancy between mutually exclusive states.
-	// Two of its 13 content rows are reserved blank for the cause of Death and
-	// the Care mistake tally.
+	// Its 13 content rows include the cause of Death and the Care mistake
+	// tally.
 	deathPanelWidth  = 43
 	deathPanelHeight = 17
 

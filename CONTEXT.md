@@ -35,7 +35,7 @@ The Panel showing the Pet's art and Stage label on the Next Screen, for every St
 _Avoid_: art panel, creature panel
 
 **STATS panel**:
-The Panel showing the Pet's Hunger and Happiness Meters, Mess and Sick (when present), and Age/Weight, beside the PET panel on the Next Screen, for every Stage except Death.
+The Panel showing the Pet's Hunger and Happiness Meters, Mess, Sick and the Attention call (when present), and Age/Weight, beside the PET panel on the Next Screen, for every Stage except Death.
 _Avoid_: info panel, meter panel
 
 **Death panel**:
