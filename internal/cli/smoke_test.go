@@ -140,6 +140,12 @@ func TestBinaryLaunchesAndQuits(t *testing.T) {
 	require.NoError(t, err)
 	waitForOutput(t, out, "tidied up")
 
+	// A freshly hatched Pet is healthy, so Cure does nothing but say so: proof the
+	// fourth tab and its hotkey are wired into the real binary.
+	_, err = ptmx.Write([]byte("u"))
+	require.NoError(t, err)
+	waitForOutput(t, out, "feels fine")
+
 	_, err = ptmx.Write([]byte{0x03}) // Ctrl+C
 	require.NoError(t, err)
 

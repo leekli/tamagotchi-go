@@ -105,6 +105,77 @@ func TestFileStoreRoundTripsCareMistakesAndEmptySpells(t *testing.T) {
 	assert.Equal(t, want.Advance(end).CareMistakes, got.Advance(end).CareMistakes)
 }
 
+// TestFileStoreRoundTripsSickness proves Sickness survives a save and load, and
+// so does the restarted sickness clock of a Cured Pet. It checks behaviour: the
+// loaded Pet must be Sick when it was, stay Sick through a Clean, and fall Sick
+// again at the same instant it would have without the save.
+func TestFileStoreRoundTripsSickness(t *testing.T) {
+	t.Parallel()
+
+	born := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	t.Run("a Sick Pet is still Sick after loading, and Clean still does not cure it", func(t *testing.T) {
+		t.Parallel()
+		store := pet.NewFileStore(filepath.Join(t.TempDir(), "save.json"))
+		at := born.Add(11 * time.Minute)
+		sick := pet.New(born).Advance(at)
+		require.True(t, sick.Sick(at), "sanity check")
+
+		require.NoError(t, store.Save(sick))
+		got, ok, err := store.Load()
+
+		require.NoError(t, err)
+		require.True(t, ok)
+		assert.True(t, got.Sick(at))
+		assert.True(t, got.Clean(at).Sick(at), "the loaded Pet is Sick from a stored record, not just from its Mess")
+	})
+
+	t.Run("a Cured Pet keeps its restarted sickness clock", func(t *testing.T) {
+		t.Parallel()
+		store := pet.NewFileStore(filepath.Join(t.TempDir(), "save.json"))
+		curedAt := born.Add(12 * time.Minute)
+		cured := pet.New(born).Advance(curedAt).Cure(curedAt)
+		require.False(t, cured.Sick(curedAt), "sanity check")
+
+		require.NoError(t, store.Save(cured))
+		got, ok, err := store.Load()
+
+		require.NoError(t, err)
+		require.True(t, ok)
+		sickAgain := curedAt.Add(pet.SickAfterMess)
+		assert.False(t, got.Sick(sickAgain.Add(-time.Nanosecond)))
+		assert.True(t, got.Sick(sickAgain), "Sick again exactly a wait after the Cure, as without the save")
+	})
+}
+
+// TestFileStoreLoadOldSaveHasNoSickness: a save from before Sickness existed
+// loads as not Sick and never Cured, so a Pet whose Mess is still young is not
+// suddenly Sick.
+func TestFileStoreLoadOldSaveHasNoSickness(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "save.json")
+	createdAt := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	body := `{
+		"schema_version": 1,
+		"created_at": "` + createdAt.Format(time.RFC3339Nano) + `",
+		"last_seen_at": "` + createdAt.Format(time.RFC3339Nano) + `",
+		"hunger": 3,
+		"happiness": 3,
+		"weight": 2
+	}`
+	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
+
+	got, ok, err := pet.NewFileStore(path).Load()
+
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.True(t, got.SickSince.IsZero())
+	assert.True(t, got.LastCuredAt.IsZero())
+	assert.False(t, got.Sick(createdAt.Add(9*time.Minute)), "not Sick before the usual 10:00")
+	assert.True(t, got.Sick(createdAt.Add(10*time.Minute)), "and Sick at it, as for any Pet")
+}
+
 // TestFileStoreLoadOldSaveWithNoEmptyStatsHasNoTally: a save from before Care
 // mistakes existed, with both Stats above 0, loads with nothing owed.
 func TestFileStoreLoadOldSaveWithNoEmptyStatsHasNoTally(t *testing.T) {

@@ -150,6 +150,13 @@ func ageLabel(age time.Duration) string {
 	return fmt.Sprintf("Day %d", days)
 }
 
+// renderSickLine draws the Sick indicator. It is a text label as well as the
+// Danger colour, so it still reads on a monochrome or NO_COLOR terminal, and it
+// fits the STATS panel's 19-column content width.
+func renderSickLine(style lipgloss.Style) string {
+	return style.Render("[+] Sick")
+}
+
 // renderMessLine draws the Mess indicator glyph.
 func renderMessLine(style lipgloss.Style) string {
 	return style.Render(strings.Join(messArt, "\n"))
@@ -194,7 +201,8 @@ func renderTabRow(labels []string, zoneIDs []string, selected int, normal, selec
 	return lipgloss.PlaceHorizontal(iconRowWidth, lipgloss.Center, row)
 }
 
-// renderIconBar draws the Care-action icon bar as a row of bordered tabs.
+// renderIconBar draws the Care-action icon bar (Feed, Play, Clean, Cure) as a row
+// of bordered tabs.
 func renderIconBar(selected int, normal, selectedStyle lipgloss.Style, border lipgloss.AdaptiveColor) string {
 	return renderTabRow(iconLabel[:], iconZoneID[:], selected, normal, selectedStyle, border)
 }

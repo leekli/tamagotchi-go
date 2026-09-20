@@ -9,6 +9,10 @@ A command-line pet game in the style of the original first-generation Tamagotchi
 toy (1996–1997), built in Go with the [Bubble Tea](https://github.com/charmbracelet/bubbletea)
 TUI framework.
 
+<img src="https://cdn-icons-png.flaticon.com/512/9480/9480360.png" width="64" height="64">  
+<img src="https://cdn-icons-png.flaticon.com/512/2532/2532690.png" width="64" height="64">   
+<img src="https://cdn-icons-png.flaticon.com/512/2532/2532579.png" width="64" height="64">   
+
 ```
  ____   ____  _    _  ____   ____   ____   ____   ____  _    _  ____
 (_  _) ( __ ) |\  /| ( __ ) / ___) / __ \ (_  _) / ___) | |  | (_  _)
@@ -34,13 +38,18 @@ TUI framework.
   is running. State persists between runs (`internal/pet`). Once it has
   died, hatching a brand new Egg is one keypress or click away.
 - A full Care loop once the Pet has hatched: Feed it a Meal or a Snack, Play
-  with it, or Clean up a Mess it's left uncleaned for too long — each
+  with it, Clean up a Mess it's left uncleaned for too long, or Cure it — each
   reachable by keyboard or mouse, with immediate feedback in the stat meters,
   and unaffected by growing from Baby all the way to Adult (once the Pet has
   died, there's nothing left to Feed, Play with, or Clean). Play also works
   off Weight gained from Snacking; let it climb too high and the Pet becomes
   Overfed, which speeds up Happiness decay the same way an uncleaned Mess
   does.
+- Neglect can make the Pet Sick: leave a Mess long enough and a `[+] Sick`
+  indicator appears in its STATS panel. Cleaning up does not cure it — only the
+  Cure action does (the fourth Icon bar tab, or <kbd>u</kbd>), and a Pet Cured
+  while its Mess is still there falls Sick again a while later. A Sick Pet can
+  still be fed and played with, and nothing worse happens to it yet.
 - Neglect is tracked behind the scenes: leave Hunger or Happiness at 0 for
   longer than a short grace window and the Pet racks up a Care mistake (one per
   Stat per Empty spell, on a lifetime tally that isn't shown to you). Refilling
@@ -65,7 +74,7 @@ TUI framework.
 | <kbd>↑</kbd> <kbd>↓</kbd> <kbd>PgUp</kbd> <kbd>PgDn</kbd> <kbd>Home</kbd> <kbd>End</kbd> / wheel | Scroll (on scrollable Screens)                                                         |
 | <kbd>←</kbd> <kbd>→</kbd> / <kbd>h</kbd> <kbd>l</kbd>, or a click on an icon                     | Select a Care action or Feed's Meal/Snack choice (Next Screen, once the Pet has hatched) |
 | <kbd>Enter</kbd>                                                                                 | Activate the selected icon or choice (Next Screen)                                     |
-| <kbd>f</kbd> <kbd>p</kbd> <kbd>c</kbd>                                                           | Feed, Play, or Clean directly, from any selection (Next Screen)                        |
+| <kbd>f</kbd> <kbd>p</kbd> <kbd>c</kbd> <kbd>u</kbd>                                              | Feed, Play, Clean, or Cure directly, from any selection (Next Screen)                  |
 | <kbd>m</kbd> <kbd>s</kbd>                                                                        | Choose Meal or Snack directly, once Feed's chooser is open (Next Screen)               |
 | <kbd>Esc</kbd>                                                                                   | Cancel Feed's Meal/Snack chooser (Next Screen); quit (Welcome Screen)                  |
 | <kbd>Ctrl</kbd>+<kbd>C</kbd>                                                                     | Quit (any Screen)                                                                      |
@@ -135,24 +144,90 @@ name precise click targets.
 
 ```mermaid
 flowchart TD
-    Main["cmd/tamagotchi-go"] --> CLI["internal/cli"]
-    CLI -->|"load Pet at startup"| Pet
-    CLI --> App["internal/tui.App<br/>owns one active Screen"]
 
-    subgraph Screens["internal/tui/*"]
-        Welcome["Welcome Screen"]
-        Next["Next Screen"]
-    end
+subgraph group_entry["Entry and Wiring"]
+  node_cmd["CLI Binary<br/>[main.go]"]
+  node_cli["CLI Runner<br/>[cli.go]"]
+end
 
-    App -->|"routes Msg, applies NavigateMsg"| Welcome
-    App -->|"routes Msg, applies NavigateMsg"| Next
-    Welcome -.->|"NavigateMsg: begin"| Next
+subgraph group_orchestration["TUI Orchestration"]
+  node_app["TUI App<br/>[app.go]"]
+end
 
-    Welcome --> Anim["internal/anim<br/>frame clock"]
-    Welcome --> Art["internal/art<br/>embedded ASCII"]
-    Next --> Anim
+subgraph group_screens["Game Screens"]
+  node_welcome["Welcome Screen<br/>[welcome.go]"]
+  node_next["Next Screen<br/>[next.go]"]
+end
 
-    Next -->|"Care actions, Advance(now), deferred save"| Pet["internal/pet<br/>Stage, Decay, Care, Store"]
+subgraph group_domain["Pet Domain"]
+  node_pet["Pet Lifecycle<br/>[pet.go]"]
+  node_simulation["Decay Simulation<br/>[decay.go]"]
+  node_care["Care Actions<br/>[actions.go]"]
+  node_neglect["Neglect Tracking<br/>[neglect.go]"]
+  node_store[("Save File<br/>[store.go]")]
+end
+
+subgraph group_support["Rendering Support"]
+  node_anim["Frame Clock<br/>[anim.go]"]
+  node_art["ASCII Art<br/>[art.go]"]
+  node_clicks["Click Targets<br/>[zone.go]"]
+  node_styles["Adaptive Styles<br/>[styles.go]"]
+end
+
+node_player(("Player"))
+
+node_player -->|"launches"| node_cmd
+node_cmd -->|"invokes"| node_cli
+node_cli -->|"loads save"| node_store
+node_store -->|"returns Pet"| node_cli
+node_cli -->|"creates or advances"| node_pet
+node_cli -->|"builds and starts"| node_app
+node_app -->|"routes messages"| node_welcome
+node_app -->|"routes messages"| node_next
+node_welcome -->|"emits navigation"| node_app
+node_welcome -->|"schedules ticks"| node_anim
+node_welcome -->|"loads artwork"| node_art
+node_welcome -->|"reads clicks"| node_clicks
+node_next -->|"schedules ticks"| node_anim
+node_next -->|"loads artwork"| node_art
+node_next -->|"reads stage"| node_pet
+node_next -->|"advances time"| node_simulation
+node_next -->|"applies care"| node_care
+node_next -->|"saves Pet"| node_store
+node_next -->|"reads clicks"| node_clicks
+node_simulation -->|"counts lapses"| node_neglect
+node_app -->|"scans frames"| node_clicks
+node_app -->|"uses chrome"| node_styles
+node_welcome -->|"uses styling"| node_styles
+node_next -->|"uses styling"| node_styles
+
+click node_cmd "https://github.com/leekli/tamagotchi-go/blob/main/cmd/tamagotchi-go/main.go"
+click node_cli "https://github.com/leekli/tamagotchi-go/blob/main/internal/cli/cli.go"
+click node_app "https://github.com/leekli/tamagotchi-go/blob/main/internal/tui/app.go"
+click node_welcome "https://github.com/leekli/tamagotchi-go/blob/main/internal/tui/welcome/welcome.go"
+click node_next "https://github.com/leekli/tamagotchi-go/blob/main/internal/tui/next/next.go"
+click node_pet "https://github.com/leekli/tamagotchi-go/blob/main/internal/pet/pet.go"
+click node_simulation "https://github.com/leekli/tamagotchi-go/blob/main/internal/pet/decay.go"
+click node_care "https://github.com/leekli/tamagotchi-go/blob/main/internal/pet/actions.go"
+click node_neglect "https://github.com/leekli/tamagotchi-go/blob/main/internal/pet/neglect.go"
+click node_store "https://github.com/leekli/tamagotchi-go/blob/main/internal/pet/store.go"
+click node_anim "https://github.com/leekli/tamagotchi-go/blob/main/internal/anim/anim.go"
+click node_art "https://github.com/leekli/tamagotchi-go/blob/main/internal/art/art.go"
+click node_clicks "https://github.com/leekli/tamagotchi-go/blob/main/internal/tui/zone.go"
+click node_styles "https://github.com/leekli/tamagotchi-go/blob/main/internal/tui/styles.go"
+
+classDef toneNeutral fill:#f8fafc,stroke:#334155,stroke-width:1.5px,color:#0f172a
+classDef toneBlue fill:#dbeafe,stroke:#2563eb,stroke-width:1.5px,color:#172554
+classDef toneAmber fill:#fef3c7,stroke:#d97706,stroke-width:1.5px,color:#78350f
+classDef toneMint fill:#dcfce7,stroke:#16a34a,stroke-width:1.5px,color:#14532d
+classDef toneRose fill:#ffe4e6,stroke:#e11d48,stroke-width:1.5px,color:#881337
+classDef toneIndigo fill:#e0e7ff,stroke:#4f46e5,stroke-width:1.5px,color:#312e81
+classDef toneTeal fill:#ccfbf1,stroke:#0f766e,stroke-width:1.5px,color:#134e4a
+class node_cmd,node_cli toneBlue
+class node_app toneAmber
+class node_welcome,node_next toneMint
+class node_pet,node_simulation,node_care,node_neglect,node_store toneRose
+class node_anim,node_art,node_clicks,node_styles,node_player toneIndigo
 ```
 
 Two small support packages back the Welcome Screen: `internal/anim` (a

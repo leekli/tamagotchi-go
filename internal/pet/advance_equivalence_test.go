@@ -37,8 +37,9 @@ type careAction struct {
 }
 
 // careKinds are the Care actions a schedule draws from: each one can change
-// Happiness's Decay rate (Snack and Play through Overfed, Clean through Mess)
-// or leaves it alone (Meal).
+// Happiness's Decay rate (Snack and Play through Overfed, Clean through Mess),
+// leaves it alone (Meal), or acts on Sickness (Cure, and Clean, which moves the
+// Mess that would make the Pet Sick).
 var careKinds = []struct {
 	name  string
 	apply func(p pet.Pet, now time.Time) pet.Pet
@@ -47,6 +48,7 @@ var careKinds = []struct {
 	{"snack", func(p pet.Pet, _ time.Time) pet.Pet { return p.Feed(pet.Snack) }},
 	{"play", func(p pet.Pet, _ time.Time) pet.Pet { return p.Play() }},
 	{"clean", func(p pet.Pet, now time.Time) pet.Pet { return p.Clean(now) }},
+	{"cure", func(p pet.Pet, now time.Time) pet.Pet { return p.Cure(now) }},
 }
 
 func namedAction(name string, at time.Duration) careAction {
@@ -165,6 +167,13 @@ func TestAdvanceScriptedTimelinesMatchOneLongCatchUp(t *testing.T) {
 			actions: []careAction{namedAction("play", 2*time.Minute), namedAction("clean", 4*time.Minute)},
 			probes:  []time.Duration{3 * time.Minute, 5 * time.Minute, 12 * time.Minute},
 		},
+		"Sick, Cured with the Mess still there, Sick again, Cleaned then Cured": {
+			prepare: unchanged, probes: []time.Duration{11 * time.Minute, 16*time.Minute + 59*time.Second, 25 * time.Minute, 40 * time.Minute},
+			actions: []careAction{
+				namedAction("cure", 12*time.Minute), namedAction("clean", 20*time.Minute),
+				namedAction("cure", 22*time.Minute), namedAction("cure", 23*time.Minute),
+			},
+		},
 		"a long absence": {
 			prepare: unchanged, probes: []time.Duration{20 * time.Minute, 6 * time.Hour},
 		},
@@ -279,7 +288,7 @@ func TestAdvanceIsExactUnderRandomCareSchedules(t *testing.T) {
 }
 
 // TestAdvanceCareMistakesAreExactUnderRandomSchedules is the same property for
-// the Care mistake tally and Empty spells, with Stats that start low and runs
+// the Care mistake tally, Empty spells and Sickness, with Stats that start low and runs
 // long enough for spells to begin, lapse, be cut short by Care actions and
 // begin again. A whole-Pet comparison covers the tally, both spells and the
 // Attention state at once. The run also counts the mistakes it saw, so the test
@@ -288,7 +297,7 @@ func TestAdvanceCareMistakesAreExactUnderRandomSchedules(t *testing.T) {
 	t.Parallel()
 
 	born := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	var withMistakes, mistakes atomic.Int64
+	var withMistakes, mistakes, sickOrCured atomic.Int64
 
 	t.Run("seeds", func(t *testing.T) {
 		for seed := uint64(1); seed <= 300; seed++ {
@@ -304,6 +313,9 @@ func TestAdvanceCareMistakesAreExactUnderRandomSchedules(t *testing.T) {
 					withMistakes.Add(1)
 					mistakes.Add(int64(final.CareMistakes))
 				}
+				if !final.SickSince.IsZero() || !final.LastCuredAt.IsZero() {
+					sickOrCured.Add(1) // the run fell Sick, and possibly was Cured
+				}
 
 				for range 2 {
 					beat := beatSizes[r.IntN(len(beatSizes))]
@@ -315,10 +327,12 @@ func TestAdvanceCareMistakesAreExactUnderRandomSchedules(t *testing.T) {
 	})
 
 	// The parallel seeds above have all finished by here.
-	t.Logf("%d of 300 schedules earned a Care mistake, %d in all", withMistakes.Load(), mistakes.Load())
+	t.Logf("%d of 300 schedules earned a Care mistake, %d in all; %d fell Sick or were Cured",
+		withMistakes.Load(), mistakes.Load(), sickOrCured.Load())
 	assert.GreaterOrEqual(t, withMistakes.Load(), int64(150),
 		"at least half of the schedules should earn a Care mistake, or the property is barely exercised")
 	assert.GreaterOrEqual(t, mistakes.Load(), int64(300), "and between them a good number of mistakes")
+	assert.GreaterOrEqual(t, sickOrCured.Load(), int64(150), "and enough should fall Sick, or be Cured, to exercise Sickness")
 }
 
 // TestHappinessAccelerationDividesTheDecayInterval guards the arithmetic the

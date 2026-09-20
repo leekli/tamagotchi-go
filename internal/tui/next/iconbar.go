@@ -15,6 +15,7 @@ const (
 	FeedZoneID  = "next.feed"
 	PlayZoneID  = "next.play"
 	CleanZoneID = "next.clean"
+	CureZoneID  = "next.cure"
 
 	MealZoneID  = "next.meal"
 	SnackZoneID = "next.snack"
@@ -27,6 +28,7 @@ const (
 	iconFeed icon = iota
 	iconPlay
 	iconClean
+	iconCure
 	numIcons
 )
 
@@ -34,12 +36,14 @@ var iconLabel = [numIcons]string{
 	iconFeed:  "Feed",
 	iconPlay:  "Play",
 	iconClean: "Clean",
+	iconCure:  "Cure",
 }
 
 var iconZoneID = [numIcons]string{
 	iconFeed:  FeedZoneID,
 	iconPlay:  PlayZoneID,
 	iconClean: CleanZoneID,
+	iconCure:  CureZoneID,
 }
 
 // feedOption indexes Feed's Meal/Snack chooser, kept as its own index space
@@ -82,6 +86,7 @@ type keyMap struct {
 	Feed  key.Binding
 	Play  key.Binding
 	Clean key.Binding
+	Cure  key.Binding
 	Meal  key.Binding
 	Snack key.Binding
 
@@ -101,6 +106,7 @@ func defaultKeyMap() keyMap {
 		Feed:    key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "feed")),
 		Play:    key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "play")),
 		Clean:   key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "clean")),
+		Cure:    key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "cure")),
 		Meal:    key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "meal")),
 		Snack:   key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "snack")),
 		Restart: key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "hatch a new Egg")),
@@ -144,6 +150,8 @@ func (s *Screen) updateIconsKey(msg tea.KeyMsg) (tui.Screen, tea.Cmd) {
 		return s.activateIcon(iconPlay)
 	case key.Matches(msg, s.keys.Clean):
 		return s.activateIcon(iconClean)
+	case key.Matches(msg, s.keys.Cure):
+		return s.activateIcon(iconCure)
 	}
 	return s, nil
 }
@@ -202,9 +210,9 @@ func (s *Screen) updateIconBarMouse(msg tea.MouseMsg) (tui.Screen, tea.Cmd) {
 }
 
 // activateIcon selects i. Feed opens the Meal/Snack chooser with no stat
-// change (so it has nothing to advance); Play and Clean advance the Pet to the
-// Screen's clock, then run their Care action immediately and show its
-// flourish.
+// change (so it has nothing to advance); Play, Clean and Cure advance the Pet to
+// the Screen's clock, then run their Care action immediately and show its
+// flourish. Cure on a Pet that is not Sick changes nothing and says so.
 func (s *Screen) activateIcon(i icon) (tui.Screen, tea.Cmd) {
 	s.selected = int(i)
 	switch i {
@@ -219,6 +227,14 @@ func (s *Screen) activateIcon(i icon) (tui.Screen, tea.Cmd) {
 		s.advanceToNow()
 		s.pet = s.pet.Clean(s.now)
 		s.setFlourish("*tidied up*")
+	case iconCure:
+		s.advanceToNow()
+		if s.pet.Sick(s.now) {
+			s.pet = s.pet.Cure(s.now)
+			s.setFlourish("*feels better*")
+		} else {
+			s.setFlourish("*feels fine*")
+		}
 	}
 	return s, nil
 }
@@ -265,5 +281,5 @@ func (s *Screen) shortHelp() []key.Binding {
 	if s.menu == menuFeedChoice {
 		return []key.Binding{s.keys.Left, s.keys.Enter, s.keys.Meal, s.keys.Snack, s.keys.Esc}
 	}
-	return []key.Binding{s.keys.Left, s.keys.Enter, s.keys.Feed, s.keys.Play, s.keys.Clean}
+	return []key.Binding{s.keys.Left, s.keys.Enter, s.keys.Feed, s.keys.Play, s.keys.Clean, s.keys.Cure}
 }

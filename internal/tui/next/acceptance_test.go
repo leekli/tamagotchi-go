@@ -1,10 +1,13 @@
 package next_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/bubbles/help"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -137,7 +140,7 @@ func TestAcceptance_OverfedRecoveryLoop(t *testing.T) {
 // careInput is one way a player triggers each Care action: the same actions by
 // keyboard and by mouse must reach the same state.
 type careInput struct {
-	snack, meal, play, clean func(t *testing.T, s tui.Screen) tui.Screen
+	snack, meal, play, clean, cure func(t *testing.T, s tui.Screen) tui.Screen
 }
 
 func typeKeys(s tui.Screen, runes ...rune) tui.Screen {
@@ -160,6 +163,7 @@ var careInputs = map[string]careInput{
 		meal:  func(_ *testing.T, s tui.Screen) tui.Screen { return typeKeys(s, 'f', 'm') },
 		play:  func(_ *testing.T, s tui.Screen) tui.Screen { return typeKeys(s, 'p') },
 		clean: func(_ *testing.T, s tui.Screen) tui.Screen { return typeKeys(s, 'c') },
+		cure:  func(_ *testing.T, s tui.Screen) tui.Screen { return typeKeys(s, 'u') },
 	},
 	"mouse": {
 		snack: func(t *testing.T, s tui.Screen) tui.Screen {
@@ -170,6 +174,7 @@ var careInputs = map[string]careInput{
 		},
 		play:  func(t *testing.T, s tui.Screen) tui.Screen { return clickZone(t, s, next.PlayZoneID) },
 		clean: func(t *testing.T, s tui.Screen) tui.Screen { return clickZone(t, s, next.CleanZoneID) },
+		cure:  func(t *testing.T, s tui.Screen) tui.Screen { return clickZone(t, s, next.CureZoneID) },
 	},
 }
 
@@ -364,6 +369,8 @@ func TestAcceptance_RestartClearsTheCareMistakeTallyAndEmptySpells(t *testing.T)
 		died.CareMistakes = 3
 		died.HungerEmpty = pet.EmptySpell{Since: born, GraceEndsAt: born.Add(pet.GraceWindow)}
 		died.HappinessEmpty = pet.EmptySpell{Since: born}
+		died.SickSince = born
+		died.LastCuredAt = born
 		s := deathScreen(t, died, &fakeStore{})
 
 		s = typeKeys(s, 'x') // not the Restart key: nothing should change
@@ -374,5 +381,143 @@ func TestAcceptance_RestartClearsTheCareMistakeTallyAndEmptySpells(t *testing.T)
 		assert.Zero(t, restarted.CareMistakes)
 		assert.Equal(t, pet.EmptySpell{}, restarted.HungerEmpty)
 		assert.Equal(t, pet.EmptySpell{}, restarted.HappinessEmpty)
+		assert.True(t, restarted.SickSince.IsZero(), "and no Sickness")
+		assert.True(t, restarted.LastCuredAt.IsZero())
 	})
+}
+
+// sickFromBirth is a Pet whose Mess appeared and then went unattended long
+// enough that it is Sick from the moment of birth on.
+func sickFromBirth() pet.Pet {
+	p := pet.New(born)
+	p.LastCleanedAt = born.Add(-(pet.MessInterval + pet.SickAfterMess))
+	return p
+}
+
+// TestAcceptance_Cure: Cure ends a Sick Pet's Sickness, does nothing but say so
+// for a healthy one, and is reached the same way by keyboard and by mouse.
+//
+// Deliberately not t.Parallel(): the mouse variants share the global bubblezone
+// manager, like the package's other mouse tests.
+func TestAcceptance_Cure(t *testing.T) {
+	hatchedAt := born.Add(pet.EggDuration)
+
+	for name, in := range careInputs {
+		t.Run(name, func(t *testing.T) {
+			t.Run("given a Sick Pet, when it is Cured, then it is no longer Sick and the Screen says so", func(t *testing.T) {
+				s := babyScreen(t, sickFromBirth(), &fakeStore{})
+				require.True(t, currentPet(t, s).Sick(hatchedAt), "sanity check: the Pet is Sick")
+				require.Contains(t, visibleText(s.View()), "Sick", "sanity check: and says so")
+
+				s = in.cure(t, s)
+
+				assert.False(t, currentPet(t, s).Sick(hatchedAt))
+				view := visibleText(s.View())
+				assert.Contains(t, view, "feels better")
+				assert.NotContains(t, view, "Sick", "the Sick indicator clears with the Sickness")
+			})
+
+			t.Run("given a healthy Pet, when Cure is used, then nothing changes but the Screen says it feels fine", func(t *testing.T) {
+				s := babyScreen(t, pet.New(born), &fakeStore{})
+				before := currentPet(t, s)
+
+				s = in.cure(t, s)
+
+				after := currentPet(t, s)
+				assert.Contains(t, visibleText(s.View()), "feels fine")
+				assert.True(t, after.SickSince.IsZero())
+				assert.True(t, after.LastCuredAt.IsZero(), "a Cure on a healthy Pet must not touch the sickness clock")
+				assert.Equal(t, before.Hunger, after.Hunger)
+				assert.Equal(t, before.Happiness, after.Happiness)
+				assert.Equal(t, before.Weight, after.Weight)
+			})
+
+			t.Run("given a Sick Pet, when it is Cleaned, then it is still Sick", func(t *testing.T) {
+				s := babyScreen(t, sickFromBirth(), &fakeStore{})
+
+				s = in.clean(t, s)
+
+				assert.True(t, currentPet(t, s).Sick(hatchedAt), "Clean removes the Mess but does not cure")
+				assert.Contains(t, visibleText(s.View()), "Sick")
+			})
+		})
+	}
+}
+
+// TestTheSickIndicatorFillsItsReservedRowAndNothingMoves: Sickness shows a text
+// indicator in the STATS row reserved for it (readable without colour), and
+// showing it moves nothing, since the row was already there, blank.
+func TestTheSickIndicatorFillsItsReservedRowAndNothingMoves(t *testing.T) {
+	t.Parallel()
+
+	healthy := babyScreen(t, pet.New(born), &fakeStore{})
+	sick := babyScreen(t, sickFromBirth(), &fakeStore{})
+
+	assert.NotContains(t, visibleText(healthy.View()), "Sick")
+	require.Contains(t, visibleText(sick.View()), "Sick")
+
+	healthyTop, healthyLast := occupiedRows(t, healthy.View())
+	sickTop, sickLast := occupiedRows(t, sick.View())
+	assert.Equal(t, healthyTop, sickTop)
+	assert.Equal(t, healthyLast, sickLast)
+
+	left, right := occupiedColumns(sick.View())
+	assert.Equal(t, envelopeWidth, right-left, "the indicator fits inside the STATS panel")
+}
+
+// TestTheDeathPanelShowsNoSickIndicator: once the Pet has died nothing about its
+// Sickness means anything, so the Death panel leaves it out.
+func TestTheDeathPanelShowsNoSickIndicator(t *testing.T) {
+	t.Parallel()
+
+	view := visibleText(deathScreen(t, sickFromBirth(), &fakeStore{}).View())
+
+	assert.NotContains(t, view, "Sick")
+}
+
+// TestTheCureTabIsAlwaysVisibleOnceHatched: the fourth Icon bar tab appears with
+// the other three from the moment the Pet hatches, healthy or not, and not
+// before.
+func TestTheCureTabIsAlwaysVisibleOnceHatched(t *testing.T) {
+	t.Parallel()
+
+	assert.NotContains(t, visibleText(sizedScreen(t, pet.New(born), &fakeStore{}).View()), "Cure", "no Icon bar before Hatch")
+	assert.Contains(t, visibleText(babyScreen(t, pet.New(born), &fakeStore{}).View()), "Cure", "visible while healthy")
+	assert.Contains(t, visibleText(babyScreen(t, sickFromBirth(), &fakeStore{}).View()), "Cure", "and while Sick")
+	assert.Contains(t, visibleText(adultScreen(t, caredForUntil(adultAt), &fakeStore{}).View()), "Cure", "at every Stage")
+}
+
+// TestTheFourTabBarFillsTheWholeIconRow: four 9-column tabs and three 2-column
+// gaps are exactly the Icon bar row's 42 columns.
+func TestTheFourTabBarFillsTheWholeIconRow(t *testing.T) {
+	t.Parallel()
+
+	view := visibleText(babyScreen(t, pet.New(born), &fakeStore{}).View())
+	var tabLine string
+	for _, line := range strings.Split(view, "\n") {
+		if strings.Contains(line, "Feed") {
+			tabLine = line
+		}
+	}
+	require.NotEmpty(t, tabLine)
+
+	left, right := lineSpan(tabLine)
+
+	assert.Equal(t, 42, right-left)
+}
+
+// TestTheHelpBarAdvertisesCureAndStillFitsTheMinimumTerminal: the App renders
+// the Screen's hints plus its own Quit binding on one row of the 80-column
+// minimum terminal.
+func TestTheHelpBarAdvertisesCureAndStillFitsTheMinimumTerminal(t *testing.T) {
+	t.Parallel()
+
+	screen, ok := babyScreen(t, pet.New(born), &fakeStore{}).(tui.HelpProvider)
+	require.True(t, ok)
+	bindings := append(screen.ShortHelp(), tui.DefaultKeyMap().Quit)
+
+	bar := help.New().ShortHelpView(bindings)
+
+	assert.Contains(t, bar, "cure")
+	assert.LessOrEqual(t, lipgloss.Width(bar), 80, "the help bar must fit one row of the minimum terminal")
 }

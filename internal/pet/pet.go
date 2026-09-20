@@ -110,6 +110,12 @@ const (
 	// that a freshly-hatched Baby isn't immediately messy, short enough that a
 	// player who ignores it for a while sees the consequence.
 	MessInterval = 5 * time.Minute
+	// SickAfterMess is how long a Mess must be left, after it appears, before the
+	// Pet falls Sick: 5 minutes, so a Pet never cleaned is Sick at 10:00. Long
+	// enough that a player who cleans up within a few minutes of the Mess
+	// appearing never sees it. Don't "correct" this back to real-hardware timing.
+	SickAfterMess = 5 * time.Minute
+
 	// AcceleratedHappinessDecayInterval is the (shorter) HappinessDecayInterval
 	// applied while the Pet HasMess or is Overfed — Happiness Decays twice as
 	// fast under either cause, so neglecting either has a real, visible cost.
@@ -166,6 +172,15 @@ type Pet struct {
 	// Stat's value and CreatedAt — see docs/adr/0008.
 	HungerEmpty    EmptySpell
 	HappinessEmpty EmptySpell
+
+	// SickSince is when the Pet fell Sick, or the zero time if it is not. Sickness
+	// is stored, not derived from the Mess that caused it, because it outlasts
+	// that cause: cleaning up removes the Mess but does not cure — only Cure does.
+	SickSince time.Time
+	// LastCuredAt is when the Pet was last Cured while Sick, or the zero time. It
+	// restarts the sickness clock: a Pet Cured while its Mess is still there is
+	// Sick again SickAfterMess after the Cure, not at once.
+	LastCuredAt time.Time
 }
 
 // New returns a freshly born Pet: an Egg, full Hunger and Happiness, and

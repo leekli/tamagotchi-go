@@ -191,9 +191,13 @@ func (s *Screen) View() string {
 	if s.pet.HasMess(s.now) {
 		messLine = renderMessLine(s.styles.mess)
 	}
+	sickLine := ""
+	if s.pet.Sick(s.now) {
+		sickLine = renderSickLine(s.styles.sick)
+	}
 	statsContent := lipgloss.JoinVertical(lipgloss.Center,
 		messLine,
-		"", // reserved: the Sick indicator
+		sickLine,
 		"", // reserved: the Attention call
 		"",
 		renderMeter("Hunger", s.pet.Hunger, s.styles.meterGood, s.styles.meterFair, s.styles.meterLow),
