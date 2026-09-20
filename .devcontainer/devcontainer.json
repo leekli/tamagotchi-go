@@ -1,11 +1,8 @@
 {
   "name": "Go CDE Workspace",
-  "image": "mcr.microsoft.com/devcontainers/go:1",
+  "image": "mcr.microsoft.com/devcontainers/go:1.26-bookworm",
 
   "features": {
-    "ghcr.io/devcontainers/features/go:1": {
-      "version": "1.26.6"
-    },
     "ghcr.io/devcontainers/features/github-cli:1": {},
     "ghcr.io/devcontainers/features/node:2": {
       "version": "24",
