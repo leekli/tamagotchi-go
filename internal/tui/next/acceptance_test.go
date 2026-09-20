@@ -521,3 +521,30 @@ func TestTheHelpBarAdvertisesCureAndStillFitsTheMinimumTerminal(t *testing.T) {
 	assert.Contains(t, bar, "cure")
 	assert.LessOrEqual(t, lipgloss.Width(bar), 80, "the help bar must fit one row of the minimum terminal")
 }
+
+// TestAcceptance_ACureResumesTheGraceClockFromTheScreensClock: Cure moves each
+// pending grace deadline by the time it was paused, and that needs the Pet's
+// spells and Sickness already recorded up to the moment of the Cure. Between
+// Beats they are not, so the Screen must advance the Pet first (as it does for
+// every Care action). Here no Beat runs before the Cure at 8:00: Hunger emptied
+// at 3:00 and the Pet fell Sick at 6:00 (see pet's sickness_grace_test.go), so
+// its resumed window expires at 9:00. A Cure applied without advancing first
+// would leave the spell unrecorded, and the mistake would be counted at 7:00.
+func TestAcceptance_ACureResumesTheGraceClockFromTheScreensClock(t *testing.T) {
+	t.Parallel()
+
+	t.Run("given a Sick Pet with an Empty Stat when it is Cured before any Beat has run then the mistake is counted a resumed window later", func(t *testing.T) {
+		p := pet.New(born)
+		p.LastCleanedAt = born.Add(-4 * time.Minute) // Mess at 1:00, Sick at 6:00
+		p.Hunger = 1                                 // Empty at 3:00
+		s := advanceAnim(t, sizedScreen(t, p, &fakeStore{}), born.Add(8*time.Minute), 1)
+
+		s = typeKeys(s, 'u')
+		require.False(t, currentPet(t, s).Sick(born.Add(8*time.Minute)), "sanity check: the Pet was Cured")
+
+		s, _ = s.Update(pet.BeatMsg{Time: born.Add(9*time.Minute - time.Nanosecond)})
+		assert.Zero(t, currentPet(t, s).CareMistakes, "just before the resumed window expires")
+		s, _ = s.Update(pet.BeatMsg{Time: born.Add(9 * time.Minute)})
+		assert.Equal(t, 1, currentPet(t, s).CareMistakes, "three minutes before the Sickness plus one after")
+	})
+}

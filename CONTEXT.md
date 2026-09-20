@@ -169,7 +169,7 @@ One unbroken run of a Stat being Empty. It begins the instant Decay takes the St
 _Avoid_: episode, neglect episode
 
 **Grace window**:
-The fixed interval a Stat may stay Empty, counted from the start of its Empty spell, before that spell costs a Care mistake.
+The fixed interval a Stat may stay Empty, counted from the start of its Empty spell, before that spell costs a Care mistake. It does not run while the Pet is Sick: the time it has left is kept and resumes when the Pet is Cured, and a spell that begins while the Pet is Sick gets a full window from the Cure. Time spent Empty is not paused.
 _Avoid_: timeout, deadline
 
 **Care mistake**:
@@ -177,7 +177,7 @@ The cost of an Empty spell whose Grace window expires without the Stat being ref
 _Avoid_: care miss, strike, penalty
 
 **Attention call**:
-The Pet's signal that a Stat is Empty, in one of two phases: the Grace window still running, or lapsed (the Care mistake counted). Only an Empty Hunger or Happiness calls; a Mess does not.
+The Pet's signal that a Stat is Empty, in one of two phases: the Grace window still running, or lapsed (the Care mistake counted). Only an Empty Hunger or Happiness calls; a Mess does not, and a Sick Pet does not call at all.
 _Avoid_: alert, notification
 
 **Sick**:
