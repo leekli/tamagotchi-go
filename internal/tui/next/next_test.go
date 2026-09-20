@@ -403,9 +403,8 @@ func TestRestartByKeyProducesAFreshEgg(t *testing.T) {
 	assert.Equal(t, pet.New(deathAt), ns.Pet(), "restart should produce exactly a freshly-created Pet, with no trace of the previous one")
 }
 
+// Deliberately not t.Parallel(): it clicks a bubblezone zone — see iconZone.
 func TestRestartByMouseProducesAFreshEgg(t *testing.T) {
-	t.Parallel()
-
 	deathAt := born.Add(pet.EggDuration + pet.BabyDuration + pet.ChildDuration + pet.TeenDuration + pet.AdultDuration)
 	s := deathScreen(t, pet.New(born), &fakeStore{})
 
@@ -434,9 +433,8 @@ func TestIconBarAndCareActionsRemainAvailableForTeen(t *testing.T) {
 	assert.Equal(t, 2, ns.Pet().Happiness, "Play should still work once the Pet is a Teen")
 }
 
+// Deliberately not t.Parallel(): it clicks a bubblezone zone — see iconZone.
 func TestMouseClickActivatesIconsForTeen(t *testing.T) {
-	t.Parallel()
-
 	p := caredForUntil(teenAt)
 	p.Happiness = 1
 	s := teenScreen(t, p, &fakeStore{})
@@ -474,9 +472,8 @@ func TestIconBarAndCareActionsRemainAvailableForAdult(t *testing.T) {
 	assert.Equal(t, 2, ns.Pet().Happiness, "Play should still work once the Pet is an Adult")
 }
 
+// Deliberately not t.Parallel(): it clicks a bubblezone zone — see iconZone.
 func TestMouseClickActivatesIconsForAdult(t *testing.T) {
-	t.Parallel()
-
 	p := caredForUntil(adultAt)
 	p.Happiness = 1
 	s := adultScreen(t, p, &fakeStore{})
@@ -514,9 +511,8 @@ func TestIconBarAndCareActionsRemainAvailableForChild(t *testing.T) {
 	assert.Equal(t, 2, ns.Pet().Happiness, "Play should still work once the Pet is a Child")
 }
 
+// Deliberately not t.Parallel(): it clicks a bubblezone zone — see iconZone.
 func TestMouseClickActivatesIconsForChild(t *testing.T) {
-	t.Parallel()
-
 	p := caredForUntil(childAt)
 	p.Happiness = 1
 	s := childScreen(t, p, &fakeStore{})
@@ -969,6 +965,13 @@ func TestShortHelpHasNoBlankBindings(t *testing.T) {
 // iconZone scans the screen until the named zone resolves (bubblezone
 // records positions on a worker goroutine) and returns its bounds, the same
 // pattern welcome_test.go's beginZone helper uses.
+//
+// Any test that calls iconZone or clickZone must NOT be t.Parallel(). They scan
+// through the process-wide bubblezone manager, and Scan discards every zone the
+// latest scan did not contain, so a parallel test scanning a different view (a
+// Death screen, say) can delete the zones another is about to click, making
+// its click miss. Serial tests never overlap each other or the parallel ones:
+// the parallel ones only resume once every serial test has finished.
 func iconZone(t *testing.T, s tui.Screen, id string) *zone.ZoneInfo {
 	t.Helper()
 	var z *zone.ZoneInfo
