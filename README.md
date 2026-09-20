@@ -59,7 +59,14 @@ TUI framework.
   grace window and the Pet racks up a Care mistake (one per Stat per Empty
   spell, on a lifetime tally that stays hidden until the Pet dies). Refilling
   the Stat in time — a Meal for Hunger, a Snack or Play for Happiness — spares
-  you, and a Sick Pet's grace window is paused until you Cure it. Every mistake
+  you, and a Sick Pet's grace window is paused until you Cure it.
+- The Pet calls for attention when a Stat empties: an `(!) Hungry` (Feed it) or
+  `(!) Sad` (Play with it) appears in its STATS panel, naming each Empty Stat.
+  Once the grace window has lapsed and the mistake is counted, it turns to
+  `(!!) HUNGRY` / `(!!) SAD` and stays until you refill the Stat. A Sick Pet
+  doesn't call, and it returns after a Cure if a Stat is still Empty. The wording,
+  not just the colour, tells the phases apart, so it reads on a monochrome
+  terminal too, and it never beeps. Every mistake
   shortens the Adult Stage by two minutes, down to five, so a badly looked-after
   Pet lives a shorter life and dies of Neglect. Worse neglect kills sooner: a Pet
   whose Hunger stays at 0 for ten minutes starves, even while Sick, and one never

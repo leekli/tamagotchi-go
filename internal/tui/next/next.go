@@ -229,10 +229,13 @@ func (s *Screen) View() string {
 	if s.pet.Sick(s.now) {
 		sickLine = renderSickLine(s.styles.sick)
 	}
+	attentionLine := renderAttentionLine(
+		s.pet.HungerAttention(s.now), s.pet.HappinessAttention(s.now),
+		s.styles.attention, s.styles.attentionLapsed)
 	statsContent := lipgloss.JoinVertical(lipgloss.Center,
 		messLine,
 		sickLine,
-		"", // reserved: the Attention call
+		attentionLine,
 		"",
 		renderMeter("Hunger", s.pet.Hunger, s.styles.meterGood, s.styles.meterFair, s.styles.meterLow),
 		renderMeter("Happiness", s.pet.Happiness, s.styles.meterGood, s.styles.meterFair, s.styles.meterLow),

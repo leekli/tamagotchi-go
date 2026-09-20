@@ -179,7 +179,7 @@ The cost of an Empty spell whose Grace window expires without the Stat being ref
 _Avoid_: care miss, strike, penalty
 
 **Attention call**:
-The Pet's signal that a Stat is Empty, in one of two phases: the Grace window still running, or lapsed (the Care mistake counted). Only an Empty Hunger or Happiness calls; a Mess does not, and a Sick Pet does not call at all.
+The Pet's signal that a Stat is Empty, in one of two phases: the Grace window still running, or lapsed (the Care mistake counted). Only an Empty Hunger or Happiness calls; a Mess does not, and a Sick Pet does not call at all. It is shown in the STATS panel as `(!)` and the name of each Empty Stat, "Hungry" (Feed it) or "Sad" (Play with it); once a Stat's Grace window has lapsed its word is capitalised and the glyph doubles to `(!!)`, and it stays until the Stat is refilled, so the phase reads without colour. It returns after a Cure if a Stat is still Empty, and it never sounds the terminal bell.
 _Avoid_: alert, notification
 
 **Sick**:

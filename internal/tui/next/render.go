@@ -157,6 +157,40 @@ func renderSickLine(style lipgloss.Style) string {
 	return style.Render("[+] Sick")
 }
 
+// renderAttentionLine draws the Attention call: "(!)" and the name of each Empty
+// Stat, "Hungry" (to be Fed) and "Sad" (to be Played with). A Stat whose grace
+// window has lapsed is shouted in capitals and the glyph doubles to "(!!)", so
+// the phase reads as words and punctuation as well as colour, on a monochrome or
+// NO_COLOR terminal too. The glyph and the colour take the worse phase of the
+// two Stats; each word keeps its own case. It is blank when neither Stat is
+// Empty, and 17 columns at its widest, inside the STATS panel's 19.
+func renderAttentionLine(hunger, happiness pet.Attention, running, lapsed lipgloss.Style) string {
+	var words []string
+	worst := pet.AttentionNone
+	add := func(a pet.Attention, word string) {
+		switch a {
+		case pet.AttentionWindowRunning:
+			words = append(words, word)
+		case pet.AttentionLapsed:
+			words = append(words, strings.ToUpper(word))
+		default:
+			return
+		}
+		worst = max(worst, a) // AttentionLapsed is the higher of the two phases
+	}
+	add(hunger, "Hungry")
+	add(happiness, "Sad")
+
+	switch worst {
+	case pet.AttentionWindowRunning:
+		return running.Render("(!) " + strings.Join(words, " & "))
+	case pet.AttentionLapsed:
+		return lapsed.Render("(!!) " + strings.Join(words, " & "))
+	default:
+		return ""
+	}
+}
+
 // renderMessLine draws the Mess indicator glyph.
 func renderMessLine(style lipgloss.Style) string {
 	return style.Render(strings.Join(messArt, "\n"))

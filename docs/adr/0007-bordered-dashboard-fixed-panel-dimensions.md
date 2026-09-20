@@ -46,3 +46,11 @@ screen looks as it did, only taller, and later changes fill rows in without movi
 anything. Because `View` is centred to the whole body, a raw line count is the same
 for every state; the tests therefore measure the occupied rows and columns to prove
 each state, Egg included, occupies the same envelope.
+
+## Update: the Attention call fills its reserved row
+
+The STATS row reserved for the Attention call now carries it: `(!) Hungry`,
+`(!) Sad` or both, and `(!!) HUNGRY & SAD` once the Grace windows have lapsed. The
+longest form is 17 columns, inside the panel's 19-column content width, so it needs
+no wrapping and shifts nothing; a unit test pins that every combination fits. The
+Sick indicator's row above it and the spacer below stay as they were.

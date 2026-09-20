@@ -110,3 +110,43 @@ func TestRenderIconBarRowHasItsFixedWidthForBothMenus(t *testing.T) {
 		}
 	}
 }
+
+// TestRenderAttentionLineReadsWithoutColour: with every colour stripped (the
+// Ascii profile, as on a monochrome or NO_COLOR terminal) the cue is still its
+// plain words, and the two phases still differ, so colour is never the only
+// signal.
+func TestRenderAttentionLineReadsWithoutColour(t *testing.T) {
+	t.Parallel()
+
+	r := lipgloss.NewRenderer(io.Discard)
+	r.SetColorProfile(termenv.Ascii)
+	running := r.NewStyle().Foreground(lipgloss.Color("3"))
+	lapsed := r.NewStyle().Foreground(lipgloss.Color("1")).Bold(true)
+	render := func(hunger, happiness pet.Attention) string {
+		return renderAttentionLine(hunger, happiness, running, lapsed)
+	}
+
+	assert.Equal(t, "(!) Hungry", render(pet.AttentionWindowRunning, pet.AttentionNone))
+	assert.Equal(t, "(!!) HUNGRY", render(pet.AttentionLapsed, pet.AttentionNone))
+	assert.Equal(t, "(!) Sad", render(pet.AttentionNone, pet.AttentionWindowRunning))
+	assert.Equal(t, "(!!) HUNGRY & Sad", render(pet.AttentionLapsed, pet.AttentionWindowRunning))
+	assert.Empty(t, render(pet.AttentionNone, pet.AttentionNone))
+}
+
+// TestRenderAttentionLineFitsTheStatsPanel: the longest cue is no wider than
+// the STATS panel's 19-column content width.
+func TestRenderAttentionLineFitsTheStatsPanel(t *testing.T) {
+	t.Parallel()
+
+	r := lipgloss.NewRenderer(io.Discard)
+	r.SetColorProfile(termenv.Ascii)
+	plain := r.NewStyle()
+	const contentWidth = statsPanelWidth - 4 // border and one column of padding each side
+
+	for _, hunger := range []pet.Attention{pet.AttentionNone, pet.AttentionWindowRunning, pet.AttentionLapsed} {
+		for _, happiness := range []pet.Attention{pet.AttentionNone, pet.AttentionWindowRunning, pet.AttentionLapsed} {
+			line := renderAttentionLine(hunger, happiness, plain, plain)
+			assert.LessOrEqual(t, lipgloss.Width(line), contentWidth, "%v / %v: %q", hunger, happiness, line)
+		}
+	}
+}
