@@ -130,7 +130,12 @@ _Avoid_: meter (that is the pip display), stat point
 **Decay**:
 The automatic, time-driven reduction of Hunger and Happiness. Decay is a pure
 function of elapsed wall-clock time, not of frames or player action, so it
-keeps moving whether or not the game is running.
+keeps moving whether or not the game is running. It is also exact: one long
+absence and the same span passed in many short steps leave the Pet identical.
+Happiness Decays faster while the Pet has Mess or is Overfed; when that rate
+changes partway through a point (Mess appearing, or a Care action ending it),
+the progress already made toward the next point is kept in proportion rather
+than restarted.
 _Avoid_: drain, tick down
 
 **Save file**:

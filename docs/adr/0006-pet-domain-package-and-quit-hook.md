@@ -56,3 +56,38 @@ the timestamp implies. It also simplified the pre-feature save file question:
 with no field to add, there was nothing to default on old saves beyond
 `LastCleanedAt` itself (defaulted to `CreatedAt`, meaning "never cleaned
 since birth").
+
+## Update: `Advance` is exact, so long catch-ups and short Beats agree
+
+`Advance` originally chose one Happiness Decay rate for the whole window it was
+given, by whether the Pet had Mess (or was Overfed) at the end of it, and its
+doc comment recorded that as a deliberate simplification. That made the result
+depend on how the same span was sliced: an untouched Pet reached Happiness 0 at
+6:00 when caught up in one call but at 7:30 when advanced in 20-second Beats.
+That was tolerable while Decay only drove a meter, but neglect consequences
+(Care mistakes, sickness, early Death) are triggered by the exact moment a Stat
+empties, so the simplification is retired.
+
+`Advance` now splits its window wherever Happiness's rate can change on its own
+(Mess appearing `MessInterval` after the last Clean) and accrues each piece at
+its own rate. Rather than re-anchoring a step's start time on each rate change,
+which needs a proportional rescale that rounds at odd nanoseconds, Happiness
+keeps a `HappinessProgress`: how far it is toward its next point, measured in
+normal-rate time. The accelerated rate simply counts double toward the next
+point, in whole-number nanosecond arithmetic, so partial progress carries across
+a rate change proportionally and exactly, and any slicing of the same span gives
+the same Pet. `AcceleratedHappinessDecayInterval` must therefore divide
+`HappinessDecayInterval` evenly, which a test pins. Hunger's rate never changes,
+so it keeps its whole-step anchor unchanged.
+
+The other rate changes, Clean and the Weight changes of Snack and Play, are
+made by Care actions between `Advance` calls. The contract is therefore that a
+Care action follows an `Advance` to its own instant, so it lands on a Pet that
+is up to date rather than changing the rate over time already passed. This is a
+contract of the domain package; making the Next Screen honour it is a separate
+change.
+
+`HappinessProgress` is a new optional Save file field (`happiness_progress_ns`).
+A save without it reads as no partial progress, and a negative value from a
+corrupted save is clamped to zero on load, so no `schema_version` bump was
+needed.

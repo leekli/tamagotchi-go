@@ -48,6 +48,57 @@ func TestFileStoreRoundTripsSaveAndLoad(t *testing.T) {
 	assert.Equal(t, want.Weight, got.Weight)
 }
 
+// TestFileStoreRoundTripsHappinessProgress proves partial progress toward the
+// next Happiness point survives a save and load, so quitting and relaunching
+// never restarts a step that was part-way done.
+func TestFileStoreRoundTripsHappinessProgress(t *testing.T) {
+	t.Parallel()
+
+	store := pet.NewFileStore(filepath.Join(t.TempDir(), "save.json"))
+	born := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	// 4 minutes on: one whole Happiness point lost at 3:00, and the 1:00 since
+	// is progress toward the next.
+	want := pet.New(born).Advance(born.Add(4 * time.Minute))
+	require.Equal(t, time.Minute, want.HappinessProgress, "sanity check on the setup")
+
+	require.NoError(t, store.Save(want))
+	got, ok, err := store.Load()
+
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, want.HappinessProgress, got.HappinessProgress)
+	assert.Equal(t, want.Happiness, got.Happiness)
+}
+
+// TestFileStoreLoadClampsNegativeHappinessProgress proves a corrupted negative
+// progress value is treated as none. Left alone, a value below minus one
+// interval (here minus 400s against a 180s interval) would make Advance hand
+// Happiness points back without any time passing.
+func TestFileStoreLoadClampsNegativeHappinessProgress(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "save.json")
+	createdAt := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	body := `{
+		"schema_version": 1,
+		"created_at": "` + createdAt.Format(time.RFC3339Nano) + `",
+		"last_seen_at": "` + createdAt.Format(time.RFC3339Nano) + `",
+		"happiness_progress_ns": -400000000000,
+		"hunger": 4,
+		"happiness": 2,
+		"weight": 2
+	}`
+	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
+
+	got, ok, err := pet.NewFileStore(path).Load()
+
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Zero(t, got.HappinessProgress)
+	assert.LessOrEqual(t, got.Advance(createdAt).Happiness, 2,
+		"a negative progress value must never raise Happiness")
+}
+
 // TestFileStoreLoadDefaultsCareActionFieldsForOldSaveFiles proves a save file
 // written before Care actions existed (so its JSON has neither
 // last_cleaned_at nor happiness_last_seen_at) loads sanely: LastCleanedAt
@@ -81,6 +132,8 @@ func TestFileStoreLoadDefaultsCareActionFieldsForOldSaveFiles(t *testing.T) {
 		"defaulting to CreatedAt should read as messy after MessInterval has passed since birth, not freshly cleaned")
 	assert.True(t, lastSeenAt.Equal(got.HappinessLastSeenAt),
 		"a pre-Care-actions save should default HappinessLastSeenAt to LastSeenAt")
+	assert.Zero(t, got.HappinessProgress,
+		"a save written before progress was tracked reads as no partial progress yet")
 }
 
 // TestFileStoreLoadClampsWeightOutOfRangeFromOldSaveFiles proves a save file
