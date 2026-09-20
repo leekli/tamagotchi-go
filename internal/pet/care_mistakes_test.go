@@ -219,13 +219,13 @@ func TestAStatAlreadyEmptyWithNoRecordedStartGetsAFreshWindow(t *testing.T) {
 	p := cleanPetBornAt(born)
 	p.Hunger = 0 // Empty, with no recorded start
 
-	assert.Equal(t, pet.AttentionWindowRunning, p.HungerAttention(born.Add(time.Hour)),
+	assert.Equal(t, pet.AttentionWindowRunning, p.HungerAttention(born.Add(20*time.Minute)),
 		"before any Advance the window is treated as just opening")
 
-	firstAdvance := born.Add(time.Hour)
+	firstAdvance := born.Add(20 * time.Minute)
 	advanced := p.Advance(firstAdvance)
 
-	// Happiness ran out at 12:00 in that hour and its window expired at 16:00, so
+	// Happiness ran out at 12:00 in those 20 minutes and its window expired at 16:00, so
 	// that one mistake is genuine. Hunger's fresh window opens at the Advance.
 	assert.Equal(t, 1, advanced.CareMistakes, "only Happiness's spell, which really did lapse")
 	assert.Equal(t, pet.AttentionWindowRunning, advanced.HungerAttention(firstAdvance))
@@ -298,15 +298,19 @@ func TestAHappinessAlreadyEmptyWithNoRecordedStartGetsAFreshWindow(t *testing.T)
 	p := cleanPetBornAt(born)
 	p.Happiness = 0 // Empty, with no recorded start
 
-	assert.Equal(t, pet.AttentionWindowRunning, p.HappinessAttention(born.Add(time.Hour)))
+	// 14 minutes in: Hunger emptied at 12:00 and its own window expires at 16:00,
+	// before the 22:00 at which it would starve the Pet.
+	firstAdvance := born.Add(14 * time.Minute)
+	assert.Equal(t, pet.AttentionWindowRunning, p.HappinessAttention(firstAdvance))
 
-	firstAdvance := born.Add(time.Hour)
 	advanced := p.Advance(firstAdvance)
 
-	// Hunger ran out at 12:00 in that hour and its window expired at 16:00, so
-	// that mistake is genuine; Happiness's fresh window opens at the Advance.
-	assert.Equal(t, 1, advanced.CareMistakes, "only Hunger's spell, which really did lapse")
+	assert.Zero(t, advanced.CareMistakes, "nothing has lapsed yet, and Happiness's time at 0 before the upgrade is not held against it")
 	assert.Equal(t, pet.AttentionWindowRunning, advanced.HappinessAttention(firstAdvance))
-	assert.Equal(t, 1, advanced.Advance(firstAdvance.Add(pet.GraceWindow-time.Nanosecond)).CareMistakes)
-	assert.Equal(t, 2, advanced.Advance(firstAdvance.Add(pet.GraceWindow)).CareMistakes)
+
+	// Hunger's genuine mistake lands at 16:00; Happiness's fresh window, a full
+	// GraceWindow from the first Advance, expires at 18:00.
+	assert.Equal(t, 1, advanced.Advance(firstAdvance.Add(pet.GraceWindow-time.Nanosecond)).CareMistakes, "only Hunger's, so far")
+	assert.Equal(t, 2, advanced.Advance(firstAdvance.Add(pet.GraceWindow)).CareMistakes,
+		"Happiness's window is a full GraceWindow from the first Advance")
 }

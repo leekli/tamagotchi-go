@@ -39,7 +39,7 @@ The Panel showing the Pet's Hunger and Happiness Meters, Mess and Sick (when pre
 _Avoid_: info panel, meter panel
 
 **Death panel**:
-The single, uncaptioned Panel shown once the Pet has reached Death, consolidating its art, Stage label, Age/Weight, and the Restart prompt — never split into a PET panel and STATS panel the way earlier Stages are.
+The single, uncaptioned Panel shown once the Pet has reached Death, consolidating its art, Stage label, Age/Weight, its Cause of Death, and the Restart prompt — never split into a PET panel and STATS panel the way earlier Stages are.
 _Avoid_: a stretched PET panel
 
 ### On-screen art
@@ -109,9 +109,10 @@ _Avoid_: Tamagotchi (ambiguous with the application's name), Character, creature
 
 **Stage**:
 The Pet's life stage: Egg, Baby, Child, Teen, Adult, or Death. Adult is the
-last Stage the Pet grows into; Death follows it automatically after a fixed
-interval, the same way every earlier Stage transition already works. Shown
-on the Next Screen as a bare-word label beneath the Pet's art.
+last Stage the Pet grows into. Each Stage up to Adult follows the last after a
+fixed interval; Death ends the life, either when the Adult Stage runs out or
+sooner, from neglect (see Cause of Death). Shown on the Next Screen as a
+bare-word label beneath the Pet's art.
 _Avoid_: level, form (informal use of "Marutchi form" for the Character is fine)
 
 **Hatch**:
@@ -124,7 +125,8 @@ _Avoid_: spawn, level up
 One of the Pet's numeric attributes: Hunger, Happiness, or Weight. Hunger and
 Happiness Decay over time; Weight never Decays — it only ever changes as the
 direct result of a Care action (Snack increases it, Play decreases it), between
-a floor of its birth weight and a fixed maximum.
+a floor of its birth weight and a fixed maximum. Once the Pet has died no Stat
+changes any more: they stay as they were at the moment of Death.
 _Avoid_: meter (that is the pip display), stat point
 
 **Decay**:
@@ -188,6 +190,10 @@ _Avoid_: ill, illness
 The Care action that ends a Sick Pet's Sickness, in a single dose. On a Pet that is not Sick it does nothing.
 _Avoid_: medicine, treat, heal
 
+**Cause of Death**:
+Why the Pet died: Old age, when its Adult Stage ran out, or Starvation, when its Hunger was left Empty for too long. If several fall at the very same instant, Starvation is the one recorded. A Sick Pet's grace clock is paused but its Hunger is still Empty, so Sickness never delays Starvation.
+_Avoid_: reason, killer
+
 **Care action**:
 A player-triggered command on the Next Screen that changes the Pet's state:
 Feed, Play, Clean, or Cure.
@@ -204,10 +210,11 @@ The two choices offered by the Feed Care action. Meal restores Hunger with no
 side effect; Snack restores Happiness but adds Weight.
 
 **Death**:
-The terminal Stage a Pet reaches after living as an Adult for a fixed
-real-time interval. Once reached, Care actions and their Icon bar are no
-longer available, and Mess no longer shows even if present — the only
-action left to the player is a Restart.
+The terminal Stage a Pet reaches when its life ends: after living as an Adult
+for a fixed real-time interval, or sooner from neglect. Every Death is recorded
+with its moment and its Cause of Death. Once reached, Care actions and their
+Icon bar are no longer available, and Mess no longer shows even if present —
+the only action left to the player is a Restart.
 _Avoid_: dead, dying, game over
 
 **Restart**:

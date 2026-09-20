@@ -548,3 +548,177 @@ func TestAcceptance_ACureResumesTheGraceClockFromTheScreensClock(t *testing.T) {
 		assert.Equal(t, 1, currentPet(t, s).CareMistakes, "three minutes before the Sickness plus one after")
 	})
 }
+
+// starvedPet is a clean Pet never fed: Hunger is Empty at 12:00 and it starves
+// at exactly 22:00.
+func starvedPet() pet.Pet {
+	p := pet.New(born)
+	p.LastCleanedAt = born.Add(24 * time.Hour)
+	return p
+}
+
+// TestAcceptance_TheDeathPanelNamesTheCause: the Death panel shows why the Pet
+// died in the row reserved for it, and it still fits its fixed dimensions.
+func TestAcceptance_TheDeathPanelNamesTheCause(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Starvation, recorded by a Beat", func(t *testing.T) {
+		s := advanceAnim(t, sizedScreen(t, starvedPet(), &fakeStore{}), born.Add(22*time.Minute), 1)
+		s, _ = s.Update(pet.BeatMsg{Time: born.Add(22 * time.Minute)})
+
+		view := visibleText(s.View())
+
+		assert.Contains(t, view, "Death")
+		assert.Contains(t, view, "Cause: Starvation")
+		assert.Contains(t, view, "hatch a new Egg", "the Restart prompt is still there")
+		first, last := occupiedRows(t, s.View())
+		assert.Equal(t, envelopeHeight, last-first+1, "and the panel is still its fixed height")
+	})
+
+	t.Run("Old age, though never recorded (a save from before deaths were)", func(t *testing.T) {
+		s := deathScreen(t, pet.New(born), &fakeStore{})
+
+		assert.Contains(t, visibleText(s.View()), "Cause: Old age")
+	})
+
+	t.Run("no cause is shown while the Pet is alive", func(t *testing.T) {
+		assert.NotContains(t, visibleText(babyScreen(t, pet.New(born), &fakeStore{}).View()), "Cause")
+	})
+}
+
+// TestAcceptance_StarvationArrivesOnTheBeat: the Pet is alive right up to the
+// Beat that reaches its 22:00, then dead. The Screen's own clock is at 22:00
+// throughout, so what changes is the Pet's record.
+func TestAcceptance_StarvationArrivesOnTheBeat(t *testing.T) {
+	t.Parallel()
+
+	s := advanceAnim(t, sizedScreen(t, starvedPet(), &fakeStore{}), born.Add(22*time.Minute), 1)
+
+	s, _ = s.Update(pet.BeatMsg{Time: born.Add(22*time.Minute - time.Nanosecond)})
+	assert.Contains(t, visibleText(s.View()), "Hunger", "alive a nanosecond before")
+	assert.True(t, currentPet(t, s).DiedAt.IsZero())
+
+	s, _ = s.Update(pet.BeatMsg{Time: born.Add(22 * time.Minute)})
+	assert.NotContains(t, visibleText(s.View()), "Hunger", "the Meters give way to the Death panel")
+	assert.Equal(t, pet.Starvation, currentPet(t, s).Cause)
+}
+
+// TestAcceptance_ACareActionAfterTheTrueMomentOfDeathFindsThePetDead: the Screen
+// advances the Pet before a Care action, so a Meal pressed after the Pet has
+// truly starved, but before the next Beat, finds it already dead and does
+// nothing: no mercy window.
+func TestAcceptance_ACareActionAfterTheTrueMomentOfDeathFindsThePetDead(t *testing.T) {
+	t.Parallel()
+
+	s := advanceAnim(t, sizedScreen(t, starvedPet(), &fakeStore{}), born.Add(22*time.Minute+5*time.Second), 1)
+	require.True(t, currentPet(t, s).DiedAt.IsZero(), "sanity check: no Beat has recorded the death yet")
+
+	s = typeKeys(s, 'f', 'm')
+
+	p := currentPet(t, s)
+	assert.Zero(t, p.Hunger, "the Meal was not given")
+	assert.True(t, born.Add(22*time.Minute).Equal(p.DiedAt), "the death is recorded at its true moment")
+	assert.Equal(t, pet.Starvation, p.Cause)
+	assert.Contains(t, visibleText(s.View()), "Cause: Starvation")
+}
+
+// TestAcceptance_EveryCareActionFindsAPetThatHasTrulyDiedAlreadyDead extends the
+// Meal case above to the other Care actions: Play, Clean and Cure, pressed after
+// the Pet has starved but before any Beat has recorded it, do nothing either.
+func TestAcceptance_EveryCareActionFindsAPetThatHasTrulyDiedAlreadyDead(t *testing.T) {
+	t.Parallel()
+
+	for name, key := range map[string]rune{"Play": 'p', "Clean": 'c', "Cure": 'u'} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			before := starvedPet()
+			s := advanceAnim(t, sizedScreen(t, before, &fakeStore{}), born.Add(22*time.Minute+5*time.Second), 1)
+
+			s = typeKeys(s, key)
+
+			p := currentPet(t, s)
+			assert.Equal(t, pet.Starvation, p.Cause, "the Pet was found dead")
+			assert.Zero(t, p.Happiness, "Play was not given")
+			assert.True(t, before.LastCleanedAt.Equal(p.LastCleanedAt), "nor was it Cleaned")
+			assert.True(t, p.LastCuredAt.IsZero(), "nor Cured")
+		})
+	}
+}
+
+// TestAcceptance_DeathMidInteractionResetsTheInteractionState: if the Pet dies
+// while a Care action's state is live (here Play is selected, with its flourish
+// showing), that state is cleared, so nothing of it outlives the Pet. The
+// selection is what can be observed from outside: the Death panel draws neither
+// the Icon bar, the Feed chooser nor a flourish, but one function resets all
+// of them together.
+func TestAcceptance_DeathMidInteractionResetsTheInteractionState(t *testing.T) {
+	t.Parallel()
+
+	s := advanceAnim(t, sizedScreen(t, starvedPet(), &fakeStore{}), born.Add(21*time.Minute), 1)
+	s = typeKeys(s, 'p') // selects Play, with its flourish showing
+	ns, ok := s.(*next.Screen)
+	require.True(t, ok)
+	require.Equal(t, 1, ns.Selected(), "sanity check: Play is selected")
+
+	s = advanceAnim(t, s, born.Add(22*time.Minute), 1)
+	s, _ = s.Update(pet.BeatMsg{Time: born.Add(22 * time.Minute)})
+
+	ns, ok = s.(*next.Screen)
+	require.True(t, ok)
+	require.Equal(t, pet.Starvation, ns.Pet().Cause, "sanity check: the Pet has died")
+	assert.Zero(t, ns.Selected(), "the selection was reset")
+}
+
+// TestAcceptance_RestartAfterEveryCause: Restart works after every cause of
+// Death, by keyboard and by mouse. It saves at once, so quitting straight after
+// keeps the Egg, and it produces a completely fresh Egg with every field, the
+// death record included, back to zero.
+//
+// Deliberately not t.Parallel(): the mouse variants share the global bubblezone
+// manager, like the package's other mouse tests.
+func TestAcceptance_RestartAfterEveryCause(t *testing.T) {
+	restartedAt := born.Add(2 * time.Hour)
+
+	dead := map[string]pet.Pet{
+		"Old age, never recorded": pet.New(born),
+		"Old age, recorded": func() pet.Pet {
+			p := pet.New(born)
+			p.DiedAt, p.Cause = born.Add(60*time.Minute+30*time.Second), pet.OldAge
+			return p
+		}(),
+		"Starvation": func() pet.Pet {
+			p := starvedPet().Advance(born.Add(30 * time.Minute))
+			require.Equal(t, pet.Starvation, p.Cause, "sanity check")
+			return p
+		}(),
+	}
+
+	for cause, initial := range dead {
+		for _, input := range []string{"keyboard", "mouse"} {
+			t.Run(cause+" by "+input, func(t *testing.T) {
+				store := &fakeStore{}
+				s := advanceAnim(t, sizedScreen(t, initial, store), restartedAt, 1)
+				require.Contains(t, visibleText(s.View()), "Cause:", "sanity check: the Death panel is showing")
+
+				var cmd tea.Cmd
+				if input == "mouse" {
+					z := iconZone(t, s, next.RestartZoneID)
+					s, cmd = s.Update(tea.MouseMsg{
+						Action: tea.MouseActionPress, Button: tea.MouseButtonLeft,
+						X: (z.StartX + z.EndX) / 2, Y: z.StartY,
+					})
+				} else {
+					s, cmd = s.Update(tea.KeyMsg{Type: tea.KeyEnter})
+				}
+
+				assert.Equal(t, pet.New(restartedAt), currentPet(t, s),
+					"a completely fresh Egg, with no trace of the death, the tally or the previous life")
+				require.NotNil(t, cmd, "Restart returns a save command")
+				cmd()
+				require.NotEmpty(t, store.saved, "and it saved at once, so quitting straight after keeps the Egg")
+				assert.Equal(t, pet.New(restartedAt), store.saved[len(store.saved)-1])
+			})
+		}
+	}
+}

@@ -567,6 +567,111 @@ func TestFullCareLoopKeyboardAndMouseReachTheSameStateAsAdult(t *testing.T) {
 	assert.False(t, byMouse.HasMess(time.Now()))
 }
 
+// runLaunchAfterDeath seeds a save file with seed (back-dated, so the Pet died
+// while the game was closed), loads it through the real loadPet catch-up, and
+// drives the Welcome Screen to the Next Screen. It waits for the Death panel's
+// cause text, restarts by hotkey or by clicking the prompt's zone, and quits.
+// It returns the Pet the Screen ended with and the Pet re-read from the save
+// file, so both the on-screen result and what persisted can be checked.
+func runLaunchAfterDeath(t *testing.T, seed pet.Pet, wantCause string, useMouse bool) (screen, saved pet.Pet) {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "save.json")
+	store := pet.NewFileStore(path)
+	require.NoError(t, store.Save(seed))
+
+	var errOut bytes.Buffer
+	initial, _ := loadPet(&errOut, path)
+	require.NotEqual(t, pet.NotDead, initial.CauseAt(time.Now()), "sanity check: the Pet died while the game was closed")
+
+	app := tui.NewApp(ScreenFactories(initial, store), tui.WelcomeScreenID)
+	tm := teatest.NewTestModel(t, app, teatest.WithInitialTermSize(100, 30))
+
+	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
+		return bytes.Contains(b, []byte("Press Enter or click to begin"))
+	}, teatest.WithDuration(3*time.Second))
+	tm.Send(tea.KeyMsg{Type: tea.KeyEnter})
+
+	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
+		return bytes.Contains(b, []byte(wantCause))
+	}, teatest.WithDuration(3*time.Second))
+
+	if useMouse {
+		z := waitForZone(t, next.RestartZoneID)
+		tm.Send(tea.MouseMsg{
+			Action: tea.MouseActionPress, Button: tea.MouseButtonLeft,
+			X: (z.StartX + z.EndX) / 2, Y: z.StartY,
+		})
+	} else {
+		tm.Send(tea.KeyMsg{Type: tea.KeyEnter})
+	}
+
+	// The Meters only draw for a living Pet, and this one was dead on arrival.
+	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
+		return bytes.Contains(b, []byte("Hunger"))
+	}, teatest.WithDuration(3*time.Second))
+
+	tm.Send(tea.KeyMsg{Type: tea.KeyCtrlC})
+	tm.WaitFinished(t, teatest.WithFinalTimeout(3*time.Second))
+
+	final, ok := tm.FinalModel(t).(*tui.App)
+	require.True(t, ok)
+	current, ok := final.Current().(*next.Screen)
+	require.True(t, ok)
+
+	saved, found, err := store.Load()
+	require.NoError(t, err)
+	require.True(t, found)
+	return current.Pet(), saved
+}
+
+// TestAPetThatDiedWhileTheGameWasClosedShowsItsCauseAndRestarts: launching with
+// a save whose Pet died while away shows the Death panel naming the cause, and
+// Restart, by key or by mouse, hatches a fresh Egg that is saved, for each cause.
+//
+// Deliberately not t.Parallel(): the mouse variants call waitForZone, which
+// reads bubblezone's process-wide DefaultManager — see
+// TestPlayAndCleanKeyboardAndMouseReachTheSameState.
+func TestAPetThatDiedWhileTheGameWasClosedShowsItsCauseAndRestarts(t *testing.T) {
+	causes := map[string]struct {
+		seed func(now time.Time) pet.Pet
+		want string
+	}{
+		"Starvation": {
+			seed: func(now time.Time) pet.Pet { return pet.New(now.Add(-40 * time.Minute)) },
+			want: "Cause: Starvation",
+		},
+		"Old age": {
+			seed: func(now time.Time) pet.Pet {
+				born := now.Add(-2 * time.Hour)
+				p := pet.New(born)
+				last := born.Add(59 * time.Minute)
+				p.LastSeenAt, p.HappinessLastSeenAt, p.LastCleanedAt = last, last, last
+				return p
+			},
+			want: "Cause: Old age",
+		},
+	}
+
+	for name, tt := range causes {
+		for _, input := range []string{"keyboard", "mouse"} {
+			t.Run(name+" by "+input, func(t *testing.T) {
+				started := time.Now()
+
+				screen, saved := runLaunchAfterDeath(t, tt.seed(started), tt.want, input == "mouse")
+
+				for where, p := range map[string]pet.Pet{"on screen": screen, "in the save file": saved} {
+					assert.True(t, p.DiedAt.IsZero(), "the Pet %s is the new one, with no death", where)
+					assert.Zero(t, p.CareMistakes, "%s", where)
+					assert.Equal(t, pet.MaxStat, p.Hunger, "%s", where)
+					assert.Equal(t, pet.StageEgg, p.Stage(time.Now()), "%s", where)
+					assert.True(t, p.CreatedAt.After(started), "born after the launch, not the seeded Pet: %s", where)
+				}
+			})
+		}
+	}
+}
+
 // runDeathThenRestart drives the Welcome Screen to the Next Screen,
 // fast-forwards past every Stage duration up to and including AdultDuration
 // (the same injected-anim.TickMsg technique runFullCareLoop already uses —

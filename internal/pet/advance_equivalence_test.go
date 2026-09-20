@@ -138,6 +138,13 @@ func TestAdvanceScriptedTimelinesMatchOneLongCatchUp(t *testing.T) {
 	}
 	unchanged := func(p pet.Pet) pet.Pet { return p }
 
+	// Two Meals every 5 minutes for an hour: enough to keep Hunger up, so the Pet
+	// lives to its full age instead of starving.
+	var fedThroughout []careAction
+	for at := 5 * time.Minute; at <= 60*time.Minute; at += 5 * time.Minute {
+		fedThroughout = append(fedThroughout, namedAction("meal", at), namedAction("meal", at))
+	}
+
 	tests := map[string]struct {
 		prepare func(pet.Pet) pet.Pet
 		actions []careAction
@@ -187,6 +194,23 @@ func TestAdvanceScriptedTimelinesMatchOneLongCatchUp(t *testing.T) {
 			actions: []careAction{
 				namedAction("cure", 8*time.Minute), namedAction("cure", 14*time.Minute),
 			},
+		},
+		"a Pet that starves, and one saved by a Meal just before": {
+			// Never fed, Hunger is Empty at 12:00 and starves the Pet at 22:00. Probes
+			// fall before, just after and long after.
+			prepare: func(p pet.Pet) pet.Pet { p.LastCleanedAt = born.Add(24 * time.Hour); return p },
+			probes:  []time.Duration{21*time.Minute + 30*time.Second, 22*time.Minute + 30*time.Second, 40 * time.Minute},
+		},
+		"the same Pet saved by a Meal just before it would starve": {
+			// The Meal at 20:59 restarts the spell, which then starves it at 31:00.
+			prepare: func(p pet.Pet) pet.Pet { p.LastCleanedAt = born.Add(24 * time.Hour); return p },
+			probes:  []time.Duration{21*time.Minute + 30*time.Second, 30 * time.Minute, 31*time.Minute + 30*time.Second, 40 * time.Minute},
+			actions: []careAction{namedAction("meal", 20*time.Minute+59*time.Second)},
+		},
+		"a Pet that lives its whole life and dies of old age": {
+			prepare: func(p pet.Pet) pet.Pet { p.LastCleanedAt = born.Add(24 * time.Hour); return p },
+			probes:  []time.Duration{30 * time.Minute, 60 * time.Minute, 61 * time.Minute, 2 * time.Hour},
+			actions: fedThroughout,
 		},
 		"a long absence": {
 			prepare: unchanged, probes: []time.Duration{20 * time.Minute, 6 * time.Hour},
@@ -311,7 +335,7 @@ func TestAdvanceCareMistakesAreExactUnderRandomSchedules(t *testing.T) {
 	t.Parallel()
 
 	born := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	var withMistakes, mistakes, sickOrCured, pausedSpells atomic.Int64
+	var withMistakes, mistakes, sickOrCured, pausedSpells, deaths atomic.Int64
 
 	t.Run("seeds", func(t *testing.T) {
 		for seed := uint64(1); seed <= 300; seed++ {
@@ -326,6 +350,9 @@ func TestAdvanceCareMistakesAreExactUnderRandomSchedules(t *testing.T) {
 				if final.CareMistakes > 0 {
 					withMistakes.Add(1)
 					mistakes.Add(int64(final.CareMistakes))
+				}
+				if !final.DiedAt.IsZero() {
+					deaths.Add(1) // the run ended in a recorded death
 				}
 				if !final.SickSince.IsZero() || !final.LastCuredAt.IsZero() {
 					sickOrCured.Add(1) // the run fell Sick, and possibly was Cured
@@ -347,13 +374,14 @@ func TestAdvanceCareMistakesAreExactUnderRandomSchedules(t *testing.T) {
 	})
 
 	// The parallel seeds above have all finished by here.
-	t.Logf("%d of 300 schedules earned a Care mistake, %d in all; %d fell Sick or were Cured; %d were caught with a grace clock paused",
-		withMistakes.Load(), mistakes.Load(), sickOrCured.Load(), pausedSpells.Load())
+	t.Logf("%d of 300 schedules earned a Care mistake, %d in all; %d fell Sick or were Cured; %d were caught with a grace clock paused; %d ended in a death",
+		withMistakes.Load(), mistakes.Load(), sickOrCured.Load(), pausedSpells.Load(), deaths.Load())
 	assert.GreaterOrEqual(t, withMistakes.Load(), int64(150),
 		"at least half of the schedules should earn a Care mistake, or the property is barely exercised")
-	assert.GreaterOrEqual(t, mistakes.Load(), int64(300), "and between them a good number of mistakes")
+	assert.GreaterOrEqual(t, mistakes.Load(), int64(200), "and between them a good number of mistakes")
 	assert.GreaterOrEqual(t, sickOrCured.Load(), int64(150), "and enough should fall Sick, or be Cured, to exercise Sickness")
 	assert.GreaterOrEqual(t, pausedSpells.Load(), int64(30), "and some should be caught mid-pause, or the pausing is barely exercised")
+	assert.GreaterOrEqual(t, deaths.Load(), int64(30), "and some should end in a death, or recorded death is barely exercised")
 }
 
 // TestHappinessAccelerationDividesTheDecayInterval guards the arithmetic the

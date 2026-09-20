@@ -212,7 +212,8 @@ func (s *Screen) updateIconBarMouse(msg tea.MouseMsg) (tui.Screen, tea.Cmd) {
 // activateIcon selects i. Feed opens the Meal/Snack chooser with no stat
 // change (so it has nothing to advance); Play, Clean and Cure advance the Pet to
 // the Screen's clock, then run their Care action immediately and show its
-// flourish. Cure on a Pet that is not Sick changes nothing and says so.
+// flourish. Cure on a Pet that is not Sick changes nothing and says so. If
+// advancing finds the Pet dead, the action does nothing.
 func (s *Screen) activateIcon(i icon) (tui.Screen, tea.Cmd) {
 	s.selected = int(i)
 	switch i {
@@ -220,15 +221,21 @@ func (s *Screen) activateIcon(i icon) (tui.Screen, tea.Cmd) {
 		s.menu = menuFeedChoice
 		s.feedSelected = int(optionMeal)
 	case iconPlay:
-		s.advanceToNow()
+		if !s.advanceToNow() {
+			return s, nil
+		}
 		s.pet = s.pet.Play()
 		s.setFlourish("*plays happily*")
 	case iconClean:
-		s.advanceToNow()
+		if !s.advanceToNow() {
+			return s, nil
+		}
 		s.pet = s.pet.Clean(s.now)
 		s.setFlourish("*tidied up*")
 	case iconCure:
-		s.advanceToNow()
+		if !s.advanceToNow() {
+			return s, nil
+		}
 		if s.pet.Sick(s.now) {
 			s.pet = s.pet.Cure(s.now)
 			s.setFlourish("*feels better*")
@@ -240,10 +247,13 @@ func (s *Screen) activateIcon(i icon) (tui.Screen, tea.Cmd) {
 }
 
 // chooseFeed advances the Pet to the Screen's clock, applies opt's Feed
-// effect, shows its flourish, and returns to the main icon bar.
+// effect, shows its flourish, and returns to the main icon bar. If advancing
+// finds the Pet dead, it does nothing.
 func (s *Screen) chooseFeed(opt feedOption) (tui.Screen, tea.Cmd) {
 	s.feedSelected = int(opt)
-	s.advanceToNow()
+	if !s.advanceToNow() {
+		return s, nil
+	}
 	switch opt {
 	case optionSnack:
 		s.pet = s.pet.Feed(pet.Snack)

@@ -12,7 +12,7 @@ A spell holds two instants, not one flag plus a start. The start is kept untouch
 ## Consequences
 
 - The new state is added to the Save file as optional fields with load defaults and no `schema_version` bump. A save with a Stat already at 0 but no recorded spell gets a fresh grace window from its first `Advance`, so upgrading never counts time from before it.
-- `Stage` will stop being purely derivable once an early Death is recorded; that change amends this ADR.
+- `Stage` stops being purely derivable once an early Death is recorded; see the update on recorded death below.
 
 ## Update: Sickness is stored for the same reason
 
@@ -41,3 +41,24 @@ Sickness began ran its course while the Pet was well and is still counted, and
 one that expires at the very instant it begins counts too. Because a Cure can only
 move deadlines that an `Advance` has already recorded, it, like every Care action,
 must follow an `Advance` to its own instant.
+
+## Update: Death is recorded, so Stage is no longer purely derived
+
+An early Death, from Starvation, cannot be derived from `CreatedAt` either, so
+`Advance` now records every death, Old age included, as `DiedAt` and a cause, at
+the exact instant it happened. `Stage` and `Age` read that record when there is
+one: from `DiedAt` on the Pet is in Stage Death and its Age stops at the moment
+of death. The age-based rule stays as the fallback, so a Pet with no record (a
+save from before deaths were recorded, or one whose `Advance` has not yet run) is
+still dead once past its age, its cause reading as Old age; the first `Advance`
+then records it. The cause is saved by name, not by number, so reordering the
+constants can never change what an existing save means.
+
+Two consequences shape `Advance`. To find a death it advances the Pet to now
+first, so that the Empty spell that will starve it is on record, takes the
+earliest death that falls by then (Starvation before Old age on an exact tie),
+and then advances again, only as far as that moment, so that its Stats and Care
+mistakes read as of the death and not of the time the game happened to notice. And
+from then on `Advance` returns the Pet unchanged: a dead Pet has no time left to
+pass. The Screen notices a death on the next Beat, or sooner when a Care action
+advances the Pet first, in which case the action finds it dead and does nothing.

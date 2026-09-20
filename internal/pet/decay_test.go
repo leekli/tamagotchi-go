@@ -24,7 +24,9 @@ func TestAdvance(t *testing.T) {
 		"partial step":   {pet.HungerDecayInterval - time.Second, pet.MaxStat, pet.MaxStat},
 		"exact step":     {pet.HungerDecayInterval, pet.MaxStat - 1, pet.MaxStat - 1},
 		"multiple steps": {2 * pet.HungerDecayInterval, pet.MaxStat - 2, pet.MaxStat - 2},
-		"floors at zero": {10 * pet.HungerDecayInterval, 0, 0},
+		// Both Stats are at 0 well before this, and 6 intervals (18 minutes) is short of
+		// the 22 at which Hunger left Empty would starve the Pet and freeze it.
+		"floors at zero": {6 * pet.HungerDecayInterval, 0, 0},
 	}
 
 	for name, tt := range tests {

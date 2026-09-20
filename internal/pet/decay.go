@@ -62,18 +62,51 @@ const maxHappinessAccrual = time.Duration(math.MaxInt64 / 2)
 //
 // It likewise records the exact instant the Pet fell Sick, if it did in this
 // window (see Pet.Sick).
+//
+// And it records death. The Pet dies of Starvation when Hunger has been Empty
+// for StarvationInterval, and of Old age when its Adult Stage runs out, at the
+// exact instant either happens, however many Beats or how long a catch-up that
+// falls inside. Its Stats and Care mistakes then read as of that instant, and
+// from then on Advance returns the Pet unchanged. A Pet from a save written
+// before deaths were recorded is dead by the age-based rule alone (see Stage),
+// and the first Advance records that death as Old age.
 func (p Pet) Advance(now time.Time) Pet {
+	if !p.DiedAt.IsZero() {
+		// A dead Pet no longer changes: its Stats froze at the moment of death.
+		return p
+	}
 	if now.Before(p.LastSeenAt) || now.Before(p.HappinessLastSeenAt) {
 		// The clock went backwards (e.g. a corrected system clock). Ignore
 		// rather than produce a negative elapsed duration.
 		return p
 	}
 
-	p = p.startUnrecordedSpells(now)
-	p = p.decayHunger(now)
-	p = p.decayHappiness(now)
-	p = p.beginSickness(now)
-	return p.countLapsedWindows(now)
+	advanced := p.advanceLiving(now)
+	at, cause, dies := advanced.earliestDeath(now)
+	if !dies {
+		return advanced
+	}
+
+	// The Pet died partway through the window. Its Stats and Care mistakes must
+	// read as of that moment, not of now, so advance again, only as far as it.
+	died := p.advanceLiving(at)
+	died.DiedAt, died.Cause = at, cause
+	return died
+}
+
+// advanceLiving advances a living Pet to at, ignoring death: the whole of
+// Advance's work on Decay, Empty spells, Sickness and Care mistakes. Advance
+// calls it once to find out whether the Pet dies within the window, and again,
+// to the moment of death, if it does.
+func (p Pet) advanceLiving(at time.Time) Pet {
+	if at.Before(p.LastSeenAt) || at.Before(p.HappinessLastSeenAt) {
+		return p
+	}
+	p = p.startUnrecordedSpells(at)
+	p = p.decayHunger(at)
+	p = p.decayHappiness(at)
+	p = p.beginSickness(at)
+	return p.countLapsedWindows(at)
 }
 
 // decayHunger applies Hunger Decay up to now, and records the instant Hunger
