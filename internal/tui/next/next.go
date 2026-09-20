@@ -76,6 +76,17 @@ func (s *Screen) setFlourish(text string) {
 	s.flourishUntil = s.frame + int(flourishDuration/anim.FrameInterval)
 }
 
+// advanceToNow brings the Pet up to the Screen's own clock. Pet.Advance only
+// runs on the slow Beat, so between Beats the Pet lags s.now by up to a Beat;
+// a Care action applied to that stale Pet would land on old state and, for
+// Clean and Snack/Play, would change Happiness's Decay rate retroactively over
+// the time since the last Beat. Every state-changing Care action therefore
+// calls this first, as Pet.Advance's contract requires. It neither saves nor
+// reschedules the Beat: the Beat still owns both.
+func (s *Screen) advanceToNow() {
+	s.pet = s.pet.Advance(s.now)
+}
+
 // ID implements tui.Screen.
 func (s *Screen) ID() tui.ScreenID { return tui.NextScreenID }
 

@@ -43,21 +43,21 @@ func babyScreen(t *testing.T, initial pet.Pet, store pet.Store) tui.Screen {
 func childScreen(t *testing.T, initial pet.Pet, store pet.Store) tui.Screen {
 	t.Helper()
 	s := sizedScreen(t, initial, store)
-	return advanceAnim(t, s, born.Add(pet.EggDuration+pet.BabyDuration), 1)
+	return advanceAnim(t, s, childAt, 1)
 }
 
 // teenScreen mirrors childScreen, but grown all the way into a Teen.
 func teenScreen(t *testing.T, initial pet.Pet, store pet.Store) tui.Screen {
 	t.Helper()
 	s := sizedScreen(t, initial, store)
-	return advanceAnim(t, s, born.Add(pet.EggDuration+pet.BabyDuration+pet.ChildDuration), 1)
+	return advanceAnim(t, s, teenAt, 1)
 }
 
 // adultScreen mirrors teenScreen, but grown all the way into an Adult.
 func adultScreen(t *testing.T, initial pet.Pet, store pet.Store) tui.Screen {
 	t.Helper()
 	s := sizedScreen(t, initial, store)
-	return advanceAnim(t, s, born.Add(pet.EggDuration+pet.BabyDuration+pet.ChildDuration+pet.TeenDuration), 1)
+	return advanceAnim(t, s, adultAt, 1)
 }
 
 // deathScreen mirrors adultScreen, but grown all the way to Death.
@@ -84,6 +84,27 @@ func (f *fakeStore) Save(p pet.Pet) error {
 }
 
 var born = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+// The instants at which each Stage begins for a Pet born at born; the Stage
+// helpers below fast-forward the Screen's clock to them.
+var (
+	childAt = born.Add(pet.EggDuration + pet.BabyDuration)
+	teenAt  = childAt.Add(pet.ChildDuration)
+	adultAt = teenAt.Add(pet.TeenDuration)
+)
+
+// caredForUntil returns a Pet born at born, with full stats, whose Decay and
+// cleaning are current as of at: what a Pet kept up to date by the periodic
+// Beat, and looked after, is when the Screen's clock reaches at. The Stage
+// helpers fast-forward the Screen's clock with animation ticks alone, so a Pet
+// built with pet.New(born) would lag that clock by many minutes — a state real
+// play cannot reach, and one a Care action (which brings the Pet up to the
+// Screen's clock first) would rightly decay before applying.
+func caredForUntil(at time.Time) pet.Pet {
+	p := pet.New(born)
+	p.LastSeenAt, p.HappinessLastSeenAt, p.LastCleanedAt = at, at, at
+	return p
+}
 
 func newScreen(t *testing.T, initial pet.Pet, store pet.Store) tui.Screen {
 	t.Helper()
@@ -398,7 +419,7 @@ func TestRestartByMouseProducesAFreshEgg(t *testing.T) {
 func TestIconBarAndCareActionsRemainAvailableForTeen(t *testing.T) {
 	t.Parallel()
 
-	p := pet.New(born)
+	p := caredForUntil(teenAt)
 	p.Happiness = 1
 	s := teenScreen(t, p, &fakeStore{})
 
@@ -416,7 +437,7 @@ func TestIconBarAndCareActionsRemainAvailableForTeen(t *testing.T) {
 func TestMouseClickActivatesIconsForTeen(t *testing.T) {
 	t.Parallel()
 
-	p := pet.New(born)
+	p := caredForUntil(teenAt)
 	p.Happiness = 1
 	s := teenScreen(t, p, &fakeStore{})
 
@@ -438,7 +459,7 @@ func TestShortHelpAdvertisesIconBarHintsForTeenToo(t *testing.T) {
 func TestIconBarAndCareActionsRemainAvailableForAdult(t *testing.T) {
 	t.Parallel()
 
-	p := pet.New(born)
+	p := caredForUntil(adultAt)
 	p.Happiness = 1
 	s := adultScreen(t, p, &fakeStore{})
 
@@ -456,7 +477,7 @@ func TestIconBarAndCareActionsRemainAvailableForAdult(t *testing.T) {
 func TestMouseClickActivatesIconsForAdult(t *testing.T) {
 	t.Parallel()
 
-	p := pet.New(born)
+	p := caredForUntil(adultAt)
 	p.Happiness = 1
 	s := adultScreen(t, p, &fakeStore{})
 
@@ -478,7 +499,7 @@ func TestShortHelpAdvertisesIconBarHintsForAdultToo(t *testing.T) {
 func TestIconBarAndCareActionsRemainAvailableForChild(t *testing.T) {
 	t.Parallel()
 
-	p := pet.New(born)
+	p := caredForUntil(childAt)
 	p.Happiness = 1
 	s := childScreen(t, p, &fakeStore{})
 
@@ -496,7 +517,7 @@ func TestIconBarAndCareActionsRemainAvailableForChild(t *testing.T) {
 func TestMouseClickActivatesIconsForChild(t *testing.T) {
 	t.Parallel()
 
-	p := pet.New(born)
+	p := caredForUntil(childAt)
 	p.Happiness = 1
 	s := childScreen(t, p, &fakeStore{})
 

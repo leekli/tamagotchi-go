@@ -22,8 +22,14 @@ import (
 // save file isolated to this test.
 func newTestApp(t *testing.T) *tui.App {
 	t.Helper()
+	return newTestAppWithPet(t, pet.New(time.Now()))
+}
+
+// newTestAppWithPet is newTestApp around a given initial Pet.
+func newTestAppWithPet(t *testing.T, initial pet.Pet) *tui.App {
+	t.Helper()
 	store := pet.NewFileStore(filepath.Join(t.TempDir(), "save.json"))
-	return tui.NewApp(ScreenFactories(pet.New(time.Now()), store), tui.WelcomeScreenID)
+	return tui.NewApp(ScreenFactories(initial, store), tui.WelcomeScreenID)
 }
 
 // TestWelcomeToNextToQuitFlow drives the fully wired App through its Phase 1
@@ -330,7 +336,18 @@ func TestFeedSnackKeyboardAndMouseReachTheSameState(t *testing.T) {
 func runFullCareLoop(t *testing.T, useMouse bool, growBy time.Duration, waitFor string) pet.Pet {
 	t.Helper()
 
-	app := newTestApp(t)
+	// The Pet is one kept up to date and looked after until the moment the
+	// clock is fast-forwarded to, as the periodic Beat and an attentive player
+	// would leave it. A Pet born at the start and merely fast-forwarded by a
+	// tick would lag that clock by many minutes, which real play cannot reach
+	// and which a Care action (advancing the Pet to the Screen's clock first)
+	// would rightly decay before applying.
+	born := time.Now()
+	fastForwardedTo := born.Add(growBy)
+	initial := pet.New(born)
+	initial.LastSeenAt, initial.HappinessLastSeenAt, initial.LastCleanedAt = fastForwardedTo, fastForwardedTo, fastForwardedTo
+
+	app := newTestAppWithPet(t, initial)
 	tm := teatest.NewTestModel(t, app, teatest.WithInitialTermSize(100, 30))
 
 	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
@@ -338,15 +355,14 @@ func runFullCareLoop(t *testing.T, useMouse bool, growBy time.Duration, waitFor 
 	}, teatest.WithDuration(3*time.Second))
 	tm.Send(tea.KeyMsg{Type: tea.KeyEnter})
 
+	// Not real time: the Pet above already stands growBy after its birth, so the
+	// Next Screen's first frame is at the Stage under test — no sleeping. Wait
+	// for that Stage's marker (its label, or "Feed" for the Icon bar) together
+	// with the Meters, in one wait: teatest.WaitFor consumes the output it reads
+	// and Bubble Tea only re-emits changed lines, so a marker on the first frame
+	// would be gone by a second wait.
 	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
-		return bytes.Contains(b, []byte("Hunger"))
-	}, teatest.WithDuration(3*time.Second))
-
-	// Not real time: growBy has elapsed relative to the Pet's birth, fed
-	// through a single synthetic anim.TickMsg — no sleeping.
-	tm.Send(anim.TickMsg{Time: time.Now().Add(growBy)})
-	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
-		return bytes.Contains(b, []byte(waitFor))
+		return bytes.Contains(b, []byte("Hunger")) && bytes.Contains(b, []byte(waitFor))
 	}, teatest.WithDuration(3*time.Second))
 
 	press := func(hotkey rune, zoneID string) {
