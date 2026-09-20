@@ -82,10 +82,10 @@ func TestFileStoreRoundTripsCareMistakesAndEmptySpells(t *testing.T) {
 	born := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	p := pet.New(born)
 	p.LastCleanedAt = born.Add(24 * time.Hour) // no Mess, so both Stats decay normally
-	p.Hunger = 1                               // Empty 3:00, counted at 7:00
-	// Happiness starts full: Empty 12:00, window running until 16:00.
+	p.Hunger = 2                               // Empty 6:00, counted at 10:00
+	p.Happiness = 3                            // Empty 9:00, window running until 13:00
 
-	now := born.Add(13 * time.Minute)
+	now := born.Add(11 * time.Minute)
 	want := p.Advance(now)
 	require.Equal(t, 1, want.CareMistakes, "sanity check: Hunger's spell has lapsed")
 	require.Equal(t, pet.AttentionWindowRunning, want.HappinessAttention(now), "sanity check: Happiness's is running")
@@ -99,7 +99,7 @@ func TestFileStoreRoundTripsCareMistakesAndEmptySpells(t *testing.T) {
 	assert.Equal(t, pet.AttentionLapsed, got.HungerAttention(now))
 	assert.Equal(t, pet.AttentionWindowRunning, got.HappinessAttention(now))
 
-	end := born.Add(16 * time.Minute)
+	end := born.Add(13 * time.Minute)
 	assert.Equal(t, 1, got.Advance(end.Add(-time.Nanosecond)).CareMistakes, "Happiness's window has not yet expired")
 	assert.Equal(t, 2, got.Advance(end).CareMistakes, "it expires at the same instant it would have without the save")
 	assert.Equal(t, want.Advance(end).CareMistakes, got.Advance(end).CareMistakes)
@@ -146,6 +146,115 @@ func TestFileStoreRoundTripsSickness(t *testing.T) {
 		assert.False(t, got.Sick(sickAgain.Add(-time.Nanosecond)))
 		assert.True(t, got.Sick(sickAgain), "Sick again exactly a wait after the Cure, as without the save")
 	})
+}
+
+// TestFileStoreRoundTripsARecordedDeath proves the moment and cause of a death
+// survive a save and load: the loaded Pet is still dead of the same cause, its
+// Age is still frozen at the moment, and Advance still leaves it alone.
+func TestFileStoreRoundTripsARecordedDeath(t *testing.T) {
+	t.Parallel()
+
+	store := pet.NewFileStore(filepath.Join(t.TempDir(), "save.json"))
+	born := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	p := pet.New(born)
+	p.LastCleanedAt = born.Add(24 * time.Hour)
+	died := p.Advance(born.Add(time.Hour)) // starves at 22:00
+	require.Equal(t, pet.Starvation, died.Cause, "sanity check")
+
+	require.NoError(t, store.Save(died))
+	got, ok, err := store.Load()
+
+	require.NoError(t, err)
+	require.True(t, ok)
+	later := born.Add(5 * time.Hour)
+	assert.True(t, died.DiedAt.Equal(got.DiedAt))
+	assert.Equal(t, pet.Starvation, got.Cause)
+	assert.Equal(t, pet.StageDeath, got.Stage(later))
+	assert.Equal(t, pet.Starvation, got.CauseAt(later))
+	assert.Equal(t, 22*time.Minute, got.Age(later))
+	assert.Equal(t, got, got.Advance(later), "a loaded dead Pet is still left alone")
+}
+
+// TestFileStoreRoundTripsARecordedOldAgeDeath: the other cause of Death survives a
+// save and load by name too.
+func TestFileStoreRoundTripsARecordedOldAgeDeath(t *testing.T) {
+	t.Parallel()
+
+	store := pet.NewFileStore(filepath.Join(t.TempDir(), "save.json"))
+	born := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	p := pet.New(born)
+	p.DiedAt, p.Cause = born.Add(60*time.Minute+30*time.Second), pet.OldAge
+
+	require.NoError(t, store.Save(p))
+	got, ok, err := store.Load()
+
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, pet.OldAge, got.Cause)
+	assert.True(t, p.DiedAt.Equal(got.DiedAt))
+}
+
+// TestFileStoreLoadOldSavePastItsAgeIsDeadOfOldAge: a save from before deaths
+// were recorded has no death fields. If it is past its age it is dead by the
+// age-based rule, and its cause reads as Old age, though nothing is recorded.
+func TestFileStoreLoadOldSavePastItsAgeIsDeadOfOldAge(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "save.json")
+	createdAt := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	body := `{
+		"schema_version": 1,
+		"created_at": "` + createdAt.Format(time.RFC3339Nano) + `",
+		"last_seen_at": "` + createdAt.Format(time.RFC3339Nano) + `",
+		"hunger": 4,
+		"happiness": 4,
+		"weight": 2
+	}`
+	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
+
+	got, ok, err := pet.NewFileStore(path).Load()
+
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.True(t, got.DiedAt.IsZero(), "no death is recorded")
+	assert.Equal(t, pet.StageDeath, got.Stage(createdAt.Add(3*time.Hour)))
+	assert.Equal(t, pet.OldAge, got.CauseAt(createdAt.Add(3*time.Hour)))
+	assert.Equal(t, pet.NotDead, got.CauseAt(createdAt.Add(time.Minute)), "and alive before then")
+}
+
+// TestFileStoreLoadReadsAnUnknownCauseAsOldAge: a recorded death whose cause
+// cannot be read (a hand-edited or newer save file) can only be old age, so a
+// dead Pet is never shown without a reason.
+func TestFileStoreLoadReadsAnUnknownCauseAsOldAge(t *testing.T) {
+	t.Parallel()
+
+	createdAt := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	diedAt := createdAt.Add(30 * time.Minute)
+	body := func(cause string) string {
+		return `{
+			"schema_version": 1,
+			"created_at": "` + createdAt.Format(time.RFC3339Nano) + `",
+			"last_seen_at": "` + createdAt.Format(time.RFC3339Nano) + `",
+			"died_at": "` + diedAt.Format(time.RFC3339Nano) + `",` + cause + `
+			"hunger": 0,
+			"happiness": 0,
+			"weight": 2
+		}`
+	}
+
+	for name, cause := range map[string]string{"an unrecognised name": `"cause_of_death": "spontaneous_combustion",`, "no cause at all": ``} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			path := filepath.Join(t.TempDir(), "save.json")
+			require.NoError(t, os.WriteFile(path, []byte(body(cause)), 0o600))
+
+			got, ok, err := pet.NewFileStore(path).Load()
+
+			require.NoError(t, err)
+			require.True(t, ok)
+			assert.Equal(t, pet.OldAge, got.CauseAt(diedAt.Add(time.Hour)))
+		})
+	}
 }
 
 // TestFileStoreLoadOldSaveHasNoSickness: a save from before Sickness existed
@@ -211,7 +320,7 @@ func TestFileStoreLoadOldSaveWithAnEmptyStatGetsAFreshGraceWindow(t *testing.T) 
 
 	path := filepath.Join(t.TempDir(), "save.json")
 	createdAt := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	lastSeen := createdAt.Add(time.Hour)
+	lastSeen := createdAt.Add(20 * time.Minute)
 	body := `{
 		"schema_version": 1,
 		"created_at": "` + createdAt.Format(time.RFC3339Nano) + `",
@@ -391,12 +500,12 @@ func TestFileStoreSecondSaveOverwritesCleanly(t *testing.T) {
 	now := time.Now()
 
 	require.NoError(t, store.Save(pet.New(now)))
-	require.NoError(t, store.Save(pet.New(now).Advance(now.Add(time.Hour))))
+	require.NoError(t, store.Save(pet.New(now).Advance(now.Add(18*time.Minute))))
 
 	got, ok, err := store.Load()
 	require.NoError(t, err)
 	require.True(t, ok)
-	assert.True(t, now.Add(time.Hour).Equal(got.LastSeenAt))
+	assert.True(t, now.Add(18*time.Minute).Equal(got.LastSeenAt))
 
 	// No stale temp files left behind alongside the save.
 	entries, err := os.ReadDir(filepath.Dir(path))

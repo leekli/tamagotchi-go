@@ -76,15 +76,37 @@ func (s *Screen) setFlourish(text string) {
 	s.flourishUntil = s.frame + int(flourishDuration/anim.FrameInterval)
 }
 
-// advanceToNow brings the Pet up to the Screen's own clock. Pet.Advance only
-// runs on the slow Beat, so between Beats the Pet lags s.now by up to a Beat;
-// a Care action applied to that stale Pet would land on old state and, for
-// Clean and Snack/Play, would change Happiness's Decay rate retroactively over
-// the time since the last Beat. Every state-changing Care action therefore
-// calls this first, as Pet.Advance's contract requires. It neither saves nor
-// reschedules the Beat: the Beat still owns both.
-func (s *Screen) advanceToNow() {
+// advanceToNow brings the Pet up to the Screen's own clock and reports whether it
+// is still alive. Pet.Advance only runs on the slow Beat, so between Beats the
+// Pet lags s.now by up to a Beat; a Care action applied to that stale Pet would
+// land on old state and, for Clean and Snack/Play, would change Happiness's Decay
+// rate retroactively over the time since the last Beat. Every state-changing Care
+// action therefore calls this first, as Pet.Advance's contract requires. It
+// neither saves nor reschedules the Beat: the Beat still owns both.
+//
+// Advancing can be what finds the Pet dead (it may have starved since the last
+// Beat), in which case there is nothing left to act on: the caller must do
+// nothing, and the Screen has already cleared its interaction state.
+func (s *Screen) advanceToNow() (alive bool) {
 	s.pet = s.pet.Advance(s.now)
+	if s.dead() {
+		s.settleDeath()
+		return false
+	}
+	return true
+}
+
+// dead reports whether the Pet is dead as of the Screen's clock.
+func (s *Screen) dead() bool { return s.pet.Stage(s.now) == pet.StageDeath }
+
+// settleDeath clears the state of any Care action in progress once the Pet has
+// died: the selection, an open Feed chooser and a showing flourish. A dead Pet
+// has no Icon bar to hold them, and the Restart that follows starts clean.
+func (s *Screen) settleDeath() {
+	s.selected = 0
+	s.menu = menuIcons
+	s.feedSelected = 0
+	s.flourish = ""
 }
 
 // ID implements tui.Screen.
@@ -121,10 +143,16 @@ func (s *Screen) Update(msg tea.Msg) (tui.Screen, tea.Cmd) {
 		if s.flourish != "" && s.frame >= s.flourishUntil {
 			s.flourish = ""
 		}
+		if s.dead() {
+			s.settleDeath()
+		}
 		return s, anim.Tick()
 
 	case pet.BeatMsg:
 		s.pet = s.pet.Advance(msg.Time)
+		if s.dead() {
+			s.settleDeath()
+		}
 		return s, tea.Batch(pet.Beat(), pet.SaveCmd(s.store, s.pet))
 
 	case tea.KeyMsg:
@@ -250,7 +278,7 @@ func (s *Screen) viewDeath() string {
 		renderStageLabel(pet.StageDeath, s.styles.stageLabel),
 		"",
 		s.styles.info.Render(infoLine(s.pet, s.now)),
-		"", // reserved: the cause of Death
+		s.styles.info.Render("Cause: "+s.pet.CauseAt(s.now).String()),
 		"", // reserved: the Care mistake tally
 		"",
 		// One extra blank row of breathing room before Restart, so the

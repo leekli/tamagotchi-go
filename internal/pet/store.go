@@ -75,9 +75,16 @@ type saveFile struct {
 	// Cured", so no schema_version bump is needed.
 	SickSince   time.Time `json:"sick_since,omitzero"`
 	LastCuredAt time.Time `json:"last_cured_at,omitzero"`
-	Hunger      int       `json:"hunger"`
-	Happiness   int       `json:"happiness"`
-	Weight      int       `json:"weight"`
+	// DiedAt and the cause of death are likewise absent from any save file
+	// written before deaths were recorded, or while the Pet is alive. A save
+	// without them is alive unless it is past its age (see Pet.Stage). The cause
+	// is stored by name, so reordering the Go constants can never change what an
+	// existing save means; an unreadable name is read as old age on load.
+	DiedAt    time.Time `json:"died_at,omitzero"`
+	Cause     string    `json:"cause_of_death,omitempty"`
+	Hunger    int       `json:"hunger"`
+	Happiness int       `json:"happiness"`
+	Weight    int       `json:"weight"`
 }
 
 // Load implements Store. A missing file is the normal first-run case, not an
@@ -111,6 +118,8 @@ func (f FileStore) Load() (Pet, bool, error) {
 		HappinessEmpty:      EmptySpell{Since: sf.HappinessEmptySince, GraceEndsAt: sf.HappinessGraceEndsAt},
 		SickSince:           sf.SickSince,
 		LastCuredAt:         sf.LastCuredAt,
+		DiedAt:              sf.DiedAt,
+		Cause:               causeFromName(sf.Cause),
 		LastCleanedAt:       sf.LastCleanedAt,
 		Hunger:              sf.Hunger,
 		Happiness:           sf.Happiness,
@@ -141,6 +150,8 @@ func (f FileStore) Save(p Pet) error {
 		HappinessGraceEndsAt: p.HappinessEmpty.GraceEndsAt,
 		SickSince:            p.SickSince,
 		LastCuredAt:          p.LastCuredAt,
+		DiedAt:               p.DiedAt,
+		Cause:                causeName(p.Cause),
 		LastCleanedAt:        p.LastCleanedAt,
 		Hunger:               p.Hunger,
 		Happiness:            p.Happiness,

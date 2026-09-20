@@ -116,6 +116,14 @@ const (
 	// appearing never sees it. Don't "correct" this back to real-hardware timing.
 	SickAfterMess = 5 * time.Minute
 
+	// StarvationInterval is how long Hunger may stay Empty before the Pet dies of
+	// Starvation, counted from the start of the Empty spell. It is deliberately
+	// longer than GraceWindow, so a Care mistake is counted well before it comes to
+	// this, and Sickness does not pause it, unlike the grace clock. A Pet never
+	// fed or cleaned is Sick long before, but it is Starvation that gets it first.
+	// Don't "correct" this back to real-hardware timing.
+	StarvationInterval = 10 * time.Minute
+
 	// AcceleratedHappinessDecayInterval is the (shorter) HappinessDecayInterval
 	// applied while the Pet HasMess or is Overfed — Happiness Decays twice as
 	// fast under either cause, so neglecting either has a real, visible cost.
@@ -177,6 +185,13 @@ type Pet struct {
 	// is stored, not derived from the Mess that caused it, because it outlasts
 	// that cause: cleaning up removes the Mess but does not cure — only Cure does.
 	SickSince time.Time
+	// DiedAt is the moment the Pet died, or the zero time while it is alive, and
+	// Cause is why. Every death is recorded, including Old age, by Advance, at the
+	// exact instant it happened: after that the Pet no longer changes, and Age
+	// stops there. A save written before deaths were recorded has neither, and
+	// is dead by the age-based rule alone (see Stage).
+	DiedAt time.Time
+	Cause  CauseOfDeath
 	// LastCuredAt is when the Pet was last Cured while Sick, or the zero time. It
 	// restarts the sickness clock: a Pet Cured while its Mess is still there is
 	// Sick again SickAfterMess after the Cure, not at once.
@@ -197,12 +212,18 @@ func New(now time.Time) Pet {
 	}
 }
 
-// Stage reports the Pet's life stage as of now. It is derived from
-// CreatedAt rather than stored, so it can never drift out of sync with it.
-// Cases must stay ordered from the largest cumulative duration to the
+// Stage reports the Pet's life stage as of now. A recorded death (DiedAt) wins:
+// the Pet is dead from that moment. Otherwise it is derived from CreatedAt
+// rather than stored, so it can never drift out of sync with it, and that same
+// age-based rule is what kills a Pet whose death was never recorded: one from a
+// save written before deaths were recorded, or one whose Advance has not yet
+// run. Cases must stay ordered from the largest cumulative duration to the
 // smallest: a future Stage added below Teen's case, rather than above it,
 // would never be reached, since Teen's condition would already have matched.
 func (p Pet) Stage(now time.Time) Stage {
+	if !p.DiedAt.IsZero() && !now.Before(p.DiedAt) {
+		return StageDeath
+	}
 	age := now.Sub(p.CreatedAt)
 	switch {
 	case age >= EggDuration+BabyDuration+ChildDuration+TeenDuration+AdultDuration:
@@ -252,15 +273,33 @@ func (s Stage) String() string {
 }
 
 // Age reports how long the Pet has been alive as of now. Once the Pet has
-// reached Death, Age stops advancing and reports the fixed elapsed time at
-// which death occurs — every earlier Stage's duration summed, plus
-// AdultDuration — rather than continuing to climb, since nothing about a
+// reached Death, Age stops advancing and reports how long it lived: up to the
+// recorded moment of death, or, for a death that was never recorded, the fixed
+// elapsed time at which old age comes — every earlier Stage's duration summed,
+// plus AdultDuration — rather than continuing to climb, since nothing about a
 // dead Pet keeps changing.
 func (p Pet) Age(now time.Time) time.Duration {
+	if !p.DiedAt.IsZero() && !now.Before(p.DiedAt) {
+		return p.DiedAt.Sub(p.CreatedAt)
+	}
 	if p.Stage(now) == StageDeath {
 		return EggDuration + BabyDuration + ChildDuration + TeenDuration + AdultDuration
 	}
 	return now.Sub(p.CreatedAt)
+}
+
+// CauseAt reports why the Pet is dead as of now, or NotDead while it is alive. A
+// recorded death names its own cause; one that was never recorded (see Stage)
+// can only be old age.
+func (p Pet) CauseAt(now time.Time) CauseOfDeath {
+	switch {
+	case !p.DiedAt.IsZero() && !now.Before(p.DiedAt):
+		return p.Cause
+	case p.Stage(now) == StageDeath:
+		return OldAge
+	default:
+		return NotDead
+	}
 }
 
 // HasMess reports whether the Pet currently has a Mess: uncleaned for at
@@ -309,5 +348,10 @@ func withLoadDefaults(p Pet) Pet {
 	p.HappinessProgress = max(p.HappinessProgress, 0)
 	// A negative tally can only come from a corrupted or hand-edited save file.
 	p.CareMistakes = max(p.CareMistakes, 0)
+	// A recorded death with no readable cause (a hand-edited or newer save file)
+	// can only be read as old age.
+	if !p.DiedAt.IsZero() && p.Cause == NotDead {
+		p.Cause = OldAge
+	}
 	return p
 }
