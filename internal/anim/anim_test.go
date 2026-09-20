@@ -132,3 +132,19 @@ func TestPulseIsASmoothRaisedCosine(t *testing.T) {
 		assert.LessOrEqual(t, v, 1.0+1e-9)
 	}
 }
+
+// TestNowDeliversATickCarryingTheCurrentTimeAtOnce: unlike Tick, which waits a
+// whole frame, Now gives a Screen a real clock reading straight away, so it is
+// not left on a seeded clock for its first frame.
+func TestNowDeliversATickCarryingTheCurrentTimeAtOnce(t *testing.T) {
+	t.Parallel()
+
+	before := time.Now()
+	msg := anim.Now()()
+	after := time.Now()
+
+	tick, ok := msg.(anim.TickMsg)
+	require.True(t, ok, "expected a TickMsg, got %T", msg)
+	assert.False(t, tick.Time.Before(before))
+	assert.False(t, tick.Time.After(after))
+}

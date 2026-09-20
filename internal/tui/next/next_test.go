@@ -135,7 +135,7 @@ func advanceAnim(t *testing.T, s tui.Screen, now time.Time, n int) tui.Screen {
 	return s
 }
 
-func TestInitStartsBothClocks(t *testing.T) {
+func TestInitStartsBothClocksAndReadsTheRealOneAtOnce(t *testing.T) {
 	t.Parallel()
 
 	cmd := newScreen(t, pet.New(born), &fakeStore{}).Init()
@@ -144,7 +144,24 @@ func TestInitStartsBothClocks(t *testing.T) {
 	msg := cmd()
 	batch, ok := msg.(tea.BatchMsg)
 	require.True(t, ok, "expected a tea.BatchMsg starting both clocks, got %T", msg)
-	require.Len(t, batch, 2)
+	require.Len(t, batch, 3, "the animation clock, the simulation Beat, and an immediate clock reading")
+
+	// Of the three only the immediate reading can deliver anything within a
+	// frame: the animation clock waits a frame and the Beat waits its interval.
+	// It must arrive before a first input could, so the Screen's clock is real by
+	// then rather than the seed.
+	got := make(chan tea.Msg, len(batch))
+	for _, c := range batch {
+		go func() { got <- c() }()
+	}
+	select {
+	case m := <-got:
+		tick, ok := m.(anim.TickMsg)
+		require.True(t, ok, "expected the immediate clock reading, got %T", m)
+		assert.WithinDuration(t, time.Now(), tick.Time, 5*time.Second)
+	case <-time.After(anim.FrameInterval / 2):
+		t.Fatal("no clock reading arrived within half a frame")
+	}
 }
 
 func TestScreenIsNotScrollable(t *testing.T) {
@@ -772,14 +789,13 @@ func TestOnQuitDiscardsAFailedSaveWithoutPanicking(t *testing.T) {
 	assert.Len(t, store.saved, 1, "Save should still have been attempted")
 }
 
-func TestScreenNowIsSeededFromInitialLastSeenAt(t *testing.T) {
+func TestScreenNowIsSeededFromTheLatestInstantThePetsRecordReaches(t *testing.T) {
 	t.Parallel()
 
-	// A duration of exactly one HungerDecayInterval both moves LastSeenAt
-	// forward by a whole step (Advance only ever consumes whole steps, so a
-	// fractional interval would leave it at born) and stays well short of
-	// EggDuration+BabyDuration — this test wants Baby art, not Child art.
-	initial := pet.New(born).Advance(born.Add(pet.HungerDecayInterval)) // LastSeenAt moves to born+3m
+	// A duration of exactly one HungerDecayInterval moves the Pet's record
+	// forward by a whole step, and stays well short of EggDuration+BabyDuration —
+	// this test wants Baby art, not Child art.
+	initial := pet.New(born).Advance(born.Add(pet.HungerDecayInterval)) // the record reaches born+3m
 	s := sizedScreen(t, initial, &fakeStore{})
 
 	// The hatch boundary (EggDuration after CreatedAt=born) has passed

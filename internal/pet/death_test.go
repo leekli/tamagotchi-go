@@ -64,21 +64,6 @@ func TestHungerEmptyForTheStarvationIntervalKillsAtThatExactInstant(t *testing.T
 	})
 }
 
-func TestStarvationIsNotPausedByASickness(t *testing.T) {
-	t.Parallel()
-
-	born := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	p := pet.New(born) // never cleaned: Sick from 10:00 and never Cured; Hunger Empty at 12:00
-	require.True(t, p.Sick(born.Add(11*time.Minute)), "sanity check")
-
-	died := p.Advance(born.Add(2 * time.Hour))
-
-	// Sickness pauses the grace clock, but time Empty is not paused: the Pet
-	// starves 10 minutes after Hunger emptied all the same.
-	assert.True(t, born.Add(22*time.Minute).Equal(died.DiedAt))
-	assert.Equal(t, pet.Starvation, died.Cause)
-}
-
 func TestARefillJustBeforeStarvationSavesThePet(t *testing.T) {
 	t.Parallel()
 
@@ -231,4 +216,37 @@ func TestASaveAlreadyPastItsDeathInstantIsRecordedWithoutRewindingItsStats(t *te
 	assert.Equal(t, pet.OldAge, died.Cause)
 	assert.Equal(t, 2, died.Hunger, "Stats stay as saved")
 	assert.Equal(t, 1, died.Happiness)
+}
+
+// TestARecordKnowsTheLatestInstantItReaches: the Next Screen seeds its clock from
+// it, before its first tick. An advanced Pet's record reaches the last Advance
+// (Hunger's own anchor can trail it by nearly a step), and a dead Pet's reaches
+// the moment it died, however long ago that was, since nothing advances it again.
+func TestARecordKnowsTheLatestInstantItReaches(t *testing.T) {
+	t.Parallel()
+
+	born := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	t.Run("a fresh Pet reaches its birth", func(t *testing.T) {
+		t.Parallel()
+		assert.True(t, born.Equal(pet.New(born).RecordedUntil()))
+	})
+
+	t.Run("an advanced Pet reaches its last Advance, not Hunger's whole-step anchor", func(t *testing.T) {
+		t.Parallel()
+		advanced := pet.New(born).Advance(born.Add(4 * time.Minute))
+		require.True(t, advanced.LastSeenAt.Before(born.Add(4*time.Minute)), "sanity check: Hunger's anchor trails")
+
+		assert.True(t, born.Add(4*time.Minute).Equal(advanced.RecordedUntil()))
+	})
+
+	t.Run("a dead Pet reaches the moment it died", func(t *testing.T) {
+		t.Parallel()
+		diesAt := born.Add(22 * time.Minute)
+		died := cleanPetBornAt(born).Advance(born.Add(3 * time.Hour))
+		require.True(t, diesAt.Equal(died.DiedAt), "sanity check")
+		require.True(t, died.LastSeenAt.Before(diesAt), "sanity check: Hunger's anchor is a step short of it")
+
+		assert.True(t, diesAt.Equal(died.RecordedUntil()))
+	})
 }

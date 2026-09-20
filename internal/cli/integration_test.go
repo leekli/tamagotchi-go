@@ -637,9 +637,21 @@ func TestAPetThatDiedWhileTheGameWasClosedShowsItsCauseAndRestarts(t *testing.T)
 		seed func(now time.Time) pet.Pet
 		want string
 	}{
+		// Cleaned a minute ago but never fed: no Mess yet, so nothing makes it Sick
+		// before Hunger, Empty from 12:00, starves it at 22:00.
 		"Starvation": {
-			seed: func(now time.Time) pet.Pet { return pet.New(now.Add(-40 * time.Minute)) },
+			seed: func(now time.Time) pet.Pet {
+				p := pet.New(now.Add(-40 * time.Minute))
+				p.LastCleanedAt = now.Add(-time.Minute)
+				return p
+			},
 			want: "Cause: Starvation",
+		},
+		// Untended for 40 minutes: Sick at 10:00 and dead of it at 18:00, ahead of the
+		// 22:00 at which it would have starved.
+		"Sickness": {
+			seed: func(now time.Time) pet.Pet { return pet.New(now.Add(-40 * time.Minute)) },
+			want: "Cause: Sickness",
 		},
 		"Old age": {
 			seed: func(now time.Time) pet.Pet {

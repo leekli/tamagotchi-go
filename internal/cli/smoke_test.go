@@ -217,10 +217,21 @@ func TestBinaryShowsTheCauseOfDeathAndRestarts(t *testing.T) {
 		seed func(now time.Time) pet.Pet
 		want string
 	}{
-		// Left untended for 40 minutes: Hunger emptied at 12:00 and starved it at 22:00.
+		// Cleaned a minute ago but never fed: Hunger emptied at 12:00 and starved it at
+		// 22:00, with no Mess to make it Sick first.
 		"Starvation": {
-			seed: func(now time.Time) pet.Pet { return pet.New(now.Add(-40 * time.Minute)) },
+			seed: func(now time.Time) pet.Pet {
+				p := pet.New(now.Add(-40 * time.Minute))
+				p.LastCleanedAt = now.Add(-time.Minute)
+				return p
+			},
 			want: "Cause: Starvation",
+		},
+		// Left untended for 40 minutes: Sick at 10:00 and dead of it at 18:00, ahead of
+		// the 22:00 at which it would have starved.
+		"Sickness": {
+			seed: func(now time.Time) pet.Pet { return pet.New(now.Add(-40 * time.Minute)) },
+			want: "Cause: Sickness",
 		},
 		// Last looked after at 59 minutes and left for two hours: it outlived every
 		// need but ran out of life at 60:30.
