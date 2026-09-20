@@ -84,8 +84,14 @@ The other rate changes, Clean and the Weight changes of Snack and Play, are
 made by Care actions between `Advance` calls. The contract is therefore that a
 Care action follows an `Advance` to its own instant, so it lands on a Pet that
 is up to date rather than changing the rate over time already passed. This is a
-contract of the domain package; making the Next Screen honour it is a separate
-change.
+contract of the domain package, and the Next Screen honours it: before applying
+Feed's Meal or Snack, Play or Clean it advances the Pet to the Screen's own
+clock, which the animation ticks keep current between the slow Beats. That
+advance neither saves nor reschedules the Beat, which still owns both. The two
+clocks are independent timers, so straight after a Beat the Screen's clock can
+sit up to a frame behind the Beat's time; the advance is then a no-op and the
+action takes effect from the Beat's instant, at most a frame (about 67ms) off,
+which is immaterial next to the minutes-long intervals it feeds.
 
 `HappinessProgress` is a new optional Save file field (`happiness_progress_ns`).
 A save without it reads as no partial progress, and a negative value from a
